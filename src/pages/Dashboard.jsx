@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../hooks/useApp';
-import { getSongs, getMembers, getRehearsals, getGigs } from '../services/firestoreService';
+import { getSongs, getMusicians, getRehearsals, getGigs } from '../services/firestoreService';
 import { Music, Users, Mic2, Calendar, Edit2, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import SmartTuner from '../components/SmartTuner';
@@ -52,7 +52,7 @@ const Dashboard = () => {
         if (!activeBand) return;
 
         const s = await getSongs(activeBand.id);
-        const m = await getMembers(activeBand.id);
+        const m = await getMusicians(activeBand.id);
         const r = await getRehearsals(activeBand.id);
         const g = await getGigs(activeBand.id);
 

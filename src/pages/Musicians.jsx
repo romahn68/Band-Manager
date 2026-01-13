@@ -3,6 +3,7 @@ import { useApp } from '../hooks/useApp';
 import { getMembers as getMusicians, addMember as addMusician, deleteMember as deleteMusician, inviteUserToBand } from '../services/firestoreService';
 import { sendInvitationEmail } from '../services/emailService';
 import { Plus, Trash2, Mail, Loader2, Copy, Users } from 'lucide-react';
+import { generateIdCode } from '../utils/codeGenerator';
 
 const Musicians = () => {
     const { activeBand } = useApp();
@@ -28,7 +29,10 @@ const Musicians = () => {
         const form = e.target;
         const newMusician = {
             nombre: form.nombre.value,
-            instrumento: form.instrumento.value,
+            instrument: {
+                id: generateIdCode('instrument'),
+                nombre: form.instrumento.value
+            },
             email: form.email.value || '',
             role: form.role.value
         };
@@ -164,7 +168,10 @@ const Musicians = () => {
                                 <span style={{ fontSize: '0.85rem', color: 'var(--accent-secondary)', fontWeight: 'bold', background: 'rgba(139, 92, 246, 0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>
                                     {musician.customId || 'SIN ID'}
                                 </span>
-                                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{musician.instrumento}</span>
+                                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                                    {musician.instrument?.nombre || musician.instrumento || 'Sin instrumento'}
+                                    <small style={{ opacity: 0.5, marginLeft: '0.4rem' }}>({musician.instrument?.id || 'NO-ID'})</small>
+                                </span>
                                 <span style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.4)' }}>{musician.role === 'admin' ? 'Administrador' : 'Músico'}</span>
                             </div>
                         </div>

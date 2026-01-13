@@ -13,7 +13,7 @@ export const getBand = async (bandId) => {
 };
 
 export const getBandsByUser = async (uid) => {
-    const q = query(collection(db, "bands"), where("ownerId", "==", uid));
+    const q = query(collection(db, "bands"), where("members", "array-contains", uid));
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 };
@@ -36,7 +36,14 @@ export const createBand = async (user, bandName = "Mi Nueva Banda") => {
         email: user.email,
         nombre: user.displayName || 'Usuario',
         role: 'Admin',
-        joinedAt: new Date().toISOString()
+        customId: generateIdCode('member'),
+        instrument: {
+            id: generateIdCode('instrument'),
+            nombre: 'Voz / Director'
+        },
+        joinedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        bandId: bandRef.id
     });
 
     return { id: bandRef.id, ...bandData };
@@ -77,7 +84,13 @@ export const joinBand = async (bandId, user, role = 'Miembro') => {
         nombre: user.displayName || 'Músico',
         role: role,
         customId: generateIdCode('member'),
-        joinedAt: new Date().toISOString()
+        instrument: {
+            id: generateIdCode('instrument'),
+            nombre: 'Por definir'
+        },
+        joinedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        bandId: bandId
     });
 };
 
@@ -114,16 +127,30 @@ const getCollection = async (coll, bandId) => {
 };
 
 const addItem = async (coll, bandId, item) => {
-    if (!bandId) throw new Error("No band selected");
-    // Map collection name to entity type for code generation
-    const typeMap = { 'songs': 'song', 'gear': 'gear', 'musicians': 'member' };
+    if (!bandId) {
+        console.error(`Attempted to add item to ${coll} without bandId`, item);
+        throw new Error("No band selected");
+    }
+
+    const typeMap = { 'songs': 'song', 'gear': 'gear', 'musicians': 'member', 'instruments': 'instrument' };
     const entityType = typeMap[coll] || 'other';
 
-    const docRef = await addDoc(collection(db, "bands", bandId, coll), {
+    // Pro-structuring: Ensure core properties exist
+    const structuredItem = {
         ...item,
-        customId: item.customId || generateIdCode(entityType)
-    });
-    return docRef.id;
+        customId: item.customId || generateIdCode(entityType),
+        createdAt: item.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        bandId: bandId
+    };
+
+    try {
+        const docRef = await addDoc(collection(db, "bands", bandId, coll), structuredItem);
+        return docRef.id;
+    } catch (error) {
+        console.error(`Error adding item to ${coll}:`, error);
+        throw error;
+    }
 };
 
 const updateItem = async (coll, bandId, itemId, data) => {
@@ -142,7 +169,7 @@ const bulkAddItems = async (coll, bandId, items) => {
     const batch = writeBatch(db);
     const collRef = collection(db, "bands", bandId, coll);
 
-    const typeMap = { 'songs': 'song', 'gear': 'gear', 'musicians': 'member' };
+    const typeMap = { 'songs': 'song', 'gear': 'gear', 'musicians': 'member', 'instruments': 'instrument' };
     const entityType = typeMap[coll] || 'other';
 
     items.forEach(item => {
@@ -150,7 +177,9 @@ const bulkAddItems = async (coll, bandId, items) => {
         batch.set(docRef, {
             ...item,
             customId: item.customId || generateIdCode(entityType),
-            createdAt: serverTimestamp()
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            bandId: bandId
         });
     });
 

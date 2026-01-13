@@ -66,7 +66,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
                         {activeBand?.nombre || 'Band Manager'}
                     </h3>
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                        {userProfile?.roleInBand?.toUpperCase() || 'MEMBER'}
+                        {userProfile?.roleInBand?.toUpperCase() || 'MÚSICO'}
                     </span>
                 </div>
                 {isMobile && (

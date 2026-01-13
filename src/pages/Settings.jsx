@@ -262,14 +262,22 @@ const Settings = () => {
                             ))}
                             {recentIds.songs.length === 0 && <p style={{ fontSize: '0.8rem', opacity: 0.5 }}>Sin canciones registradas.</p>}
                         </div>
-                        <h3 style={{ fontSize: '0.9rem', color: 'var(--accent-primary)', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.5rem' }}>Últimos Músicos</h3>
-                        {recentIds.musicians.map(m => (
-                            <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.4rem 0', fontSize: '0.8rem' }}>
-                                <span style={{ fontWeight: 600 }}>{m.nombre}</span>
-                                <code style={{ color: 'var(--accent-secondary)' }}>{m.customId}</code>
-                            </div>
-                        ))}
-                        {recentIds.musicians.length === 0 && <p style={{ fontSize: '0.8rem', opacity: 0.5 }}>Sin músicos registrados.</p>}
+                        <div>
+                            <h3 style={{ fontSize: '0.9rem', color: 'var(--accent-primary)', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.5rem' }}>Últimos Músicos e Instrumentos</h3>
+                            {recentIds.musicians.map(m => (
+                                <div key={m.id} style={{ display: 'flex', flexDirection: 'column', padding: '0.6rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+                                        <span style={{ fontWeight: 600 }}>{m.nombre}</span>
+                                        <code style={{ color: 'var(--accent-secondary)' }}>{m.customId}</code>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', opacity: 0.6 }}>
+                                        <span>{m.instrument?.nombre || 'N/A'}</span>
+                                        <code>{m.instrument?.id || 'N/A'}</code>
+                                    </div>
+                                </div>
+                            ))}
+                            {recentIds.musicians.length === 0 && <p style={{ fontSize: '0.8rem', opacity: 0.5 }}>Sin músicos registrados.</p>}
+                        </div>
                     </div>
                 </div>
 

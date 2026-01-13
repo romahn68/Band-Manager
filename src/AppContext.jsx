@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from './hooks/useAuth';
 import { AppContext } from './hooks/Contexts';
 import { createBand, updateBand, getBandsByUser } from './services/firestoreService';
+import { generateIdCode } from './utils/codeGenerator';
 // db import removed
 
 export const AppProvider = ({ children }) => {
@@ -23,8 +24,16 @@ export const AppProvider = ({ children }) => {
 
                 if (bands.length > 0) {
                     const savedBandId = localStorage.getItem(`activeBandId_${currentUser.uid}`);
-                    const savedBand = bands.find(b => b.id === savedBandId);
-                    setActiveBand(savedBand || bands[0]);
+                    let savedBand = bands.find(b => b.id === savedBandId) || bands[0];
+
+                    // Auto-fix missing customId for old bands
+                    if (!savedBand.customId) {
+                        const newId = generateIdCode('band');
+                        await updateBand(savedBand.id, { customId: newId });
+                        savedBand = { ...savedBand, customId: newId };
+                    }
+
+                    setActiveBand(savedBand);
                 } else {
                     // Create first band for new user
                     const newBand = await createBand(currentUser);
