@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAuth } from '../AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { doc, setDoc } from 'firebase/firestore';
@@ -11,6 +11,8 @@ const Onboarding = () => {
     const [formData, setFormData] = useState({
         fullName: '',
         age: '',
+        country: '',
+        city: '',
         roleInBand: 'musico' // Default
     });
     const [loading, setLoading] = useState(false);
@@ -30,7 +32,7 @@ const Onboarding = () => {
 
             await setDoc(doc(db, "users", currentUser.uid), profileData);
             setUserProfile(profileData);
-            navigate('/');
+            navigate('/dashboard');
         } catch (error) {
             console.error("Error saving profile", error);
             alert("Error al guardar el perfil. Intenta de nuevo.");
@@ -74,6 +76,30 @@ const Onboarding = () => {
                                 required
                             />
                         </div>
+                    </div>
+
+                    <div className="input-group">
+                        <label style={{ display: 'block', marginBottom: '0.5rem' }}>País</label>
+                        <input
+                            type="text"
+                            placeholder="Tu país"
+                            value={formData.country}
+                            onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                            style={{ paddingLeft: '1rem', width: '100%' }}
+                            required
+                        />
+                    </div>
+
+                    <div className="input-group">
+                        <label style={{ display: 'block', marginBottom: '0.5rem' }}>Ciudad</label>
+                        <input
+                            type="text"
+                            placeholder="Tu ciudad"
+                            value={formData.city}
+                            onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                            style={{ paddingLeft: '1rem', width: '100%' }}
+                            required
+                        />
                     </div>
 
                     <div className="input-group">

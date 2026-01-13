@@ -1,5 +1,5 @@
 import React from 'react';
-import { useApp } from '../AppContext';
+import { useApp } from '../hooks/useApp';
 
 const BandProfile = () => {
     const { activeBand, updateBandName, loading } = useApp();

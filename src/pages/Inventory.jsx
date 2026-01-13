@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useApp } from '../AppContext';
+import { useApp } from '../hooks/useApp';
 import { getGear, addGear, updateGear, deleteGear } from '../services/firestoreService';
 import { Plus, Trash2, Edit2, Check, X, Search, Pocket, Package, User } from 'lucide-react';
 
@@ -11,15 +11,28 @@ const Inventory = () => {
     const [editingId, setEditingId] = useState(null);
     const [search, setSearch] = useState('');
 
-    useEffect(() => {
-        if (activeBand) loadGear();
-    }, [activeBand]);
-
-    const loadGear = async () => {
+    const loadGear = React.useCallback(async () => {
         if (!activeBand) return;
         const data = await getGear(activeBand.id);
         setGear(data);
-    };
+    }, [activeBand]);
+
+    useEffect(() => {
+        if (activeBand) loadGear();
+    }, [activeBand, loadGear]);
+
+    // Warn before leaving if form has unsaved changes
+    useEffect(() => {
+        const isDirty = formData.name || formData.owner || formData.notes;
+        const handleBeforeUnload = (e) => {
+            if (showForm && isDirty) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        };
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }, [showForm, formData]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -57,7 +70,7 @@ const Inventory = () => {
 
     return (
         <div className="container">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
                 <h1 style={{ color: 'var(--accent-primary)', margin: 0 }}>Inventario de Equipo (Gear)</h1>
                 <button
                     onClick={() => { setShowForm(!showForm); setEditingId(null); setFormData({ name: '', category: 'Instrumento', owner: '', condition: 'Bueno', notes: '' }); }}

@@ -1,14 +1,14 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useAuth } from './AuthContext';
-import { getBand, createBand, updateBand, getBandsByUser } from './services/firestoreService';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from './hooks/useAuth';
+import { AppContext } from './hooks/Contexts';
+import { createBand, updateBand, getBandsByUser } from './services/firestoreService';
 // db import removed
-
-const AppContext = createContext();
 
 export const AppProvider = ({ children }) => {
     const { currentUser } = useAuth();
     const [activeBand, setActiveBand] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
     useEffect(() => {
         const setup = async () => {
@@ -22,20 +22,22 @@ export const AppProvider = ({ children }) => {
                 const bands = await getBandsByUser(currentUser.uid);
 
                 if (bands.length > 0) {
-                    setActiveBand(bands[0]);
+                    const savedBandId = localStorage.getItem(`activeBandId_${currentUser.uid}`);
+                    const savedBand = bands.find(b => b.id === savedBandId);
+                    setActiveBand(savedBand || bands[0]);
                 } else {
                     // Create first band for new user
-                    const newId = await createBand(currentUser);
-                    const newBand = {
-                        id: newId,
-                        nombre: 'Mi Nueva Banda',
-                        ownerId: currentUser.uid,
-                        createdAt: new Date().toISOString()
-                    };
+                    const newBand = await createBand(currentUser);
                     setActiveBand(newBand);
+                    localStorage.setItem(`activeBandId_${currentUser.uid}`, newBand.id);
                 }
             } catch (error) {
                 console.error("Error setting up AppContext:", error);
+                if (error.code === 'permission-denied') {
+                    setError('Faltan permisos en Firestore. Revisa las reglas de seguridad.');
+                } else {
+                    setError('Error al conectar con la base de datos.');
+                }
             } finally {
                 setLoading(false);
             }
@@ -43,6 +45,13 @@ export const AppProvider = ({ children }) => {
 
         setup();
     }, [currentUser]);
+
+    // Persist active band choice
+    useEffect(() => {
+        if (currentUser && activeBand) {
+            localStorage.setItem(`activeBandId_${currentUser.uid}`, activeBand.id);
+        }
+    }, [activeBand, currentUser]);
 
 
     const updateBandName = async (newName) => {
@@ -52,11 +61,24 @@ export const AppProvider = ({ children }) => {
         }
     };
 
+    const createNewBand = async (bandName) => {
+        if (!currentUser) return;
+        setLoading(true);
+        try {
+            const newBand = await createBand(currentUser, bandName);
+            setActiveBand(newBand);
+            localStorage.setItem(`activeBandId_${currentUser.uid}`, newBand.id);
+            return newBand;
+        } catch (error) {
+            console.error("Error creating band:", error);
+            throw error;
+        } finally {
+            setLoading(false);
+        }
+    };
     return (
-        <AppContext.Provider value={{ activeBand, updateBandName, loading }}>
+        <AppContext.Provider value={{ activeBand, updateBandName, createNewBand, loading, error }}>
             {children}
         </AppContext.Provider>
     );
 };
-
-export const useApp = () => useContext(AppContext);

@@ -19,6 +19,10 @@
   --size-h1: 2.5rem;
   --size-h2: 2rem;
   --size-h3: 1.5rem;
+
+  /* Sidebar widths */
+  --sidebar-width: 260px;
+  --sidebar-collapsed-width: 0px;
 }
 
 * {
@@ -115,6 +119,59 @@ textarea:focus {
   max-width: 1200px;
   margin: 0 auto;
   padding: 2rem;
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 1rem;
+  }
+
+  :root {
+    --size-h1: 2rem;
+    --size-h2: 1.5rem;
+    --size-h3: 1.25rem;
+  }
+
+  body {
+    font-size: 16px;
+  }
+}
+
+.main-content {
+  flex: 1;
+  margin-left: var(--sidebar-width);
+  padding: 2rem;
+  min-height: 100vh;
+  transition: margin-left 0.3s ease, padding 0.3s ease;
+}
+
+@media (max-width: 768px) {
+  .main-content {
+    margin-left: 0;
+    padding: 1rem;
+    padding-top: 5rem;
+  }
+}
+
+.mobile-only-header {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-only-header {
+    display: flex;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    background: var(--bg-deep);
+    border-bottom: 1px solid var(--glass-border);
+    align-items: center;
+    padding: 0 1rem;
+    z-index: 900;
+    backdrop-filter: blur(10px);
+  }
 }
 
 @media print {

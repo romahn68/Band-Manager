@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, UserPlus, LogIn } from 'lucide-react';
 
@@ -13,10 +13,14 @@ const Login = () => {
 
     useEffect(() => {
         if (currentUser) {
-            if (!userProfile) {
+            const redirectTo = localStorage.getItem('redirectAfterLogin');
+            if (redirectTo) {
+                localStorage.removeItem('redirectAfterLogin');
+                navigate(redirectTo);
+            } else if (!userProfile) {
                 navigate('/onboarding');
             } else {
-                navigate('/');
+                navigate('/dashboard');
             }
         }
     }, [currentUser, userProfile, navigate]);
@@ -24,7 +28,7 @@ const Login = () => {
     const handleGoogleLogin = async () => {
         try {
             await loginWithGoogle();
-        } catch (error) {
+        } catch {
             setError("Error al iniciar con Google");
         }
     };
@@ -38,7 +42,7 @@ const Login = () => {
             } else {
                 await loginWithEmail(email, password);
             }
-        } catch (error) {
+        } catch {
             setError(isRegister ? "Error al registrarse" : "Correo o contraseña incorrectos");
         }
     };

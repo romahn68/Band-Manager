@@ -1,5 +1,8 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+
+
+import React, { useEffect, useState } from 'react';
 import { auth, googleProvider, db } from './firebase';
+import { AuthContext } from './hooks/Contexts';
 import {
     signInWithPopup,
     signOut,
@@ -7,9 +10,7 @@ import {
     createUserWithEmailAndPassword,
     signInWithEmailAndPassword
 } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-
-const AuthContext = createContext();
+import { doc, getDoc } from 'firebase/firestore';
 
 export const AuthProvider = ({ children }) => {
     const [currentUser, setCurrentUser] = useState(null);
@@ -37,19 +38,26 @@ export const AuthProvider = ({ children }) => {
             setCurrentUser(user);
             try {
                 if (user) {
-                    // Fetch extended profile
                     const docRef = doc(db, "users", user.uid);
-                    const docSnap = await getDoc(docRef);
-                    if (docSnap.exists()) {
+
+                    // Add a timeout to prevent perpetual loading if Firestore hangs
+                    const profilePromise = getDoc(docRef);
+                    const timeoutPromise = new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error("Firestore timeout")), 5000)
+                    );
+
+                    const docSnap = await Promise.race([profilePromise, timeoutPromise]);
+
+                    if (docSnap && docSnap.exists()) {
                         setUserProfile(docSnap.data());
                     } else {
-                        setUserProfile(null); // Force onboarding
+                        setUserProfile(null);
                     }
                 } else {
                     setUserProfile(null);
                 }
             } catch (error) {
-                console.error("Error fetching user profile:", error);
+                console.error("AuthContext: Error fetching user profile or timeout:", error);
                 setUserProfile(null);
             } finally {
                 setLoading(false);
@@ -88,7 +96,4 @@ export const AuthProvider = ({ children }) => {
         </AuthContext.Provider>
     );
 };
-
-
-export const useAuth = () => useContext(AuthContext);
 

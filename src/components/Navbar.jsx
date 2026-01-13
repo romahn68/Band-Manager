@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Users, Music, Calendar, Mic2, LayoutDashboard, Settings, LogOut, User, Package, DollarSign } from 'lucide-react';
-import { useAuth } from '../AuthContext';
+import { useAuth } from '../hooks/useAuth';
 
 const Navbar = () => {
     const { userProfile, logout } = useAuth();
@@ -17,8 +17,8 @@ const Navbar = () => {
     };
 
     const navItems = [
-        { to: '/', icon: <LayoutDashboard size={20} />, label: 'Inicio' },
-        { to: '/miembros', icon: <Users size={20} />, label: 'Miembros' },
+        { to: '/dashboard', icon: <LayoutDashboard size={20} />, label: 'Inicio' },
+        { to: '/musicos', icon: <Users size={20} />, label: 'Músicos' },
         { to: '/biblioteca', icon: <Music size={20} />, label: 'Canciones' },
         { to: '/ensayos', icon: <Mic2 size={20} />, label: 'Ensayos' },
         { to: '/conciertos', icon: <Calendar size={20} />, label: 'Conciertos' },

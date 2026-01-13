@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useApp } from '../AppContext';
+import { useApp } from '../hooks/useApp';
 import { getRehearsals, addRehearsal, deleteRehearsal, getSongs } from '../services/firestoreService';
 import { Plus, Trash2, Calendar as CalendarIcon, GripVertical, X } from 'lucide-react';
 import { Reorder } from 'framer-motion';
@@ -12,19 +12,22 @@ const Rehearsals = () => {
     const [showForm, setShowForm] = useState(false);
     const [formData, setFormData] = useState({ fecha: '', cancionesIds: [] });
 
-    useEffect(() => {
-        if (activeBand) {
-            loadData();
-        }
-    }, [activeBand]);
-
-    const loadData = async () => {
+    const loadData = React.useCallback(async () => {
         if (!activeBand) return;
         const rData = await getRehearsals(activeBand.id);
         const sData = await getSongs(activeBand.id);
         setRehearsals(rData.sort((a, b) => b.fecha.localeCompare(a.fecha)));
         setSongs(sData);
-    };
+    }, [activeBand]);
+
+    useEffect(() => {
+        if (activeBand) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            loadData();
+        }
+    }, [activeBand, loadData]);
+
+
 
     const handleAdd = async (e) => {
         e.preventDefault();

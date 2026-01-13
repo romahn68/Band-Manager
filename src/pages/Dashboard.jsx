@@ -1,47 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { useApp } from '../AppContext';
+import { useApp } from '../hooks/useApp';
 import { getSongs, getMembers, getRehearsals, getGigs } from '../services/firestoreService';
 import { Music, Users, Mic2, Calendar, Edit2, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import SmartTuner from '../components/SmartTuner';
 
-const Dashboard = () => {
-    const { activeBand, updateBandName } = useApp();
-    const navigate = useNavigate();
-    const [stats, setStats] = useState({ songs: 0, members: 0, rehearsals: 0, gigs: 0 });
-    const [nextGig, setNextGig] = useState(null);
-    const [isEditingName, setIsEditingName] = useState(false);
-    const [tempName, setTempName] = useState('');
-
-    useEffect(() => {
-        if (activeBand) {
-            setTempName(activeBand.nombre);
-            loadStats();
-        }
-    }, [activeBand]);
-
-    const loadStats = async () => {
-        if (!activeBand) return;
-
-        const s = await getSongs(activeBand.id);
-        const m = await getMembers(activeBand.id);
-        const r = await getRehearsals(activeBand.id);
-        const g = await getGigs(activeBand.id);
-
-        const today = new Date().toISOString().split('T')[0];
-        const upcomingGigs = g
-            .filter(gig => gig.fecha >= today)
-            .sort((a, b) => a.fecha.localeCompare(b.fecha));
-
-        setStats({ songs: s.length, members: m.length, rehearsals: r.length, gigs: g.length });
-        setNextGig(upcomingGigs[0] || null);
-    };
-
-    const handleUpdateName = () => {
-        updateBandName(tempName);
-        setIsEditingName(false);
-    };
-
-    const StatCard = ({ icon: Icon, label, value, color, to }) => (
+const StatCard = ({ icon, label, value, color, to, navigate }) => {
+    const Icon = icon;
+    return (
         <div
             onClick={() => navigate(to)}
             className="glass"
@@ -65,6 +31,51 @@ const Dashboard = () => {
             <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{label}</span>
         </div>
     );
+};
+
+const Dashboard = () => {
+    const { activeBand, updateBandName } = useApp();
+    const navigate = useNavigate();
+    const [stats, setStats] = useState({ songs: 0, musicians: 0, rehearsals: 0, gigs: 0 });
+    const [nextGig, setNextGig] = useState(null);
+    const [isEditingName, setIsEditingName] = useState(false);
+    const [tempName, setTempName] = useState(activeBand?.nombre || '');
+    const [prevBandId, setPrevBandId] = useState(activeBand?.id);
+
+    // Sync state during render if band changes (avoids effect-based cascading renders)
+    if (activeBand?.id !== prevBandId) {
+        setPrevBandId(activeBand?.id);
+        setTempName(activeBand?.nombre || '');
+    }
+
+    const loadStats = React.useCallback(async () => {
+        if (!activeBand) return;
+
+        const s = await getSongs(activeBand.id);
+        const m = await getMembers(activeBand.id);
+        const r = await getRehearsals(activeBand.id);
+        const g = await getGigs(activeBand.id);
+
+        const today = new Date().toISOString().split('T')[0];
+        const upcomingGigs = g
+            .filter(gig => gig.fecha >= today)
+            .sort((a, b) => a.fecha.localeCompare(b.fecha));
+
+        setStats({ songs: s.length, musicians: m.length, rehearsals: r.length, gigs: g.length });
+        setNextGig(upcomingGigs[0] || null);
+    }, [activeBand]);
+
+    useEffect(() => {
+        if (activeBand) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            loadStats();
+        }
+    }, [activeBand, loadStats]);
+
+    const handleUpdateName = () => {
+        updateBandName(tempName);
+        setIsEditingName(false);
+    };
 
     return (
         <div className="container">
@@ -134,27 +145,42 @@ const Dashboard = () => {
             </div>
 
             {/* Dashboard Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
+            <div style={{
+                display: 'grid',
+                gridTemplateColumns: window.innerWidth > 768 ? 'repeat(auto-fit, minmax(300px, 1fr))' : '1fr',
+                gap: '1.5rem'
+            }}>
 
                 {/* Stats Section */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '1.5rem', gridColumn: '1 / -1' }}>
-                    <StatCard icon={Users} label="Miembros" value={stats.members} color="#f472b6" to="/miembros" />
-                    <StatCard icon={Music} label="Canciones" value={stats.songs} color="#8b5cf6" to="/biblioteca" />
-                    <StatCard icon={Mic2} label="Ensayos" value={stats.rehearsals} color="#10b981" to="/ensayos" />
-                    <StatCard icon={Calendar} label="Conciertos" value={stats.gigs} color="#3b82f6" to="/conciertos" />
+                <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: window.innerWidth > 480 ? 'repeat(auto-fit, minmax(140px, 1fr))' : 'repeat(2, 1fr)',
+                    gap: '1rem',
+                    gridColumn: '1 / -1'
+                }}>
+                    <StatCard icon={Users} label="Músicos" value={stats.musicians} color="#f472b6" to="/musicos" navigate={navigate} />
+                    <StatCard icon={Music} label="Canciones" value={stats.songs} color="#8b5cf6" to="/biblioteca" navigate={navigate} />
+                    <StatCard icon={Mic2} label="Ensayos" value={stats.rehearsals} color="#10b981" to="/ensayos" navigate={navigate} />
+                    <StatCard icon={Calendar} label="Conciertos" value={stats.gigs} color="#3b82f6" to="/conciertos" navigate={navigate} />
                 </div>
 
                 {/* AI Tools Section */}
-                <div style={{ gridColumn: '1 / span 1' }}>
+                <div style={{ gridColumn: window.innerWidth > 768 ? '1 / span 1' : 'auto' }}>
                     <SmartTuner />
                 </div>
 
-                {/* Additional Quick Actions or Info (Placeholder for symmetry) */}
-                <div className="glass" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1rem', background: 'rgba(255,255,255,0.02)' }}>
-                    <h3 style={{ margin: 0, color: 'var(--accent-secondary)' }}>Resumen de Actividad</h3>
+                {/* Additional Quick Actions or Info */}
+                <div className="glass" style={{
+                    padding: '1.5rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '1rem',
+                    background: 'rgba(255,255,255,0.02)'
+                }}>
+                    <h3 style={{ margin: 0, color: 'var(--accent-secondary)', fontSize: '1.2rem' }}>Resumen</h3>
                     <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
                         Tienes {nextGig ? '1 concierto próximo' : '0 conciertos próximos'}.
-                        Has registrado {stats.rehearsals} ensayos en total.
+                        Has registrado {stats.rehearsals} ensayos.
                     </p>
                     <div style={{ marginTop: 'auto', borderTop: '1px solid var(--glass-border)', paddingTop: '1rem' }}>
                         <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Band Manager Cloud v1.0</span>

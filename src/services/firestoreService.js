@@ -1,11 +1,88 @@
 import { db } from '../firebase';
-import { collection, query, where, getDocs, addDoc, doc, updateDoc, deleteDoc, getDoc, setDoc, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, doc, updateDoc, deleteDoc, getDoc, orderBy, onSnapshot, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { generateIdCode } from '../utils/codeGenerator';
 
-// ... (previous functions remain the same)
+// --- BANDS ---
+export const getBand = async (bandId) => {
+    const docRef = doc(db, "bands", bandId);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+        return { id: docSnap.id, ...docSnap.data() };
+    }
+    return null;
+};
+
+export const getBandsByUser = async (uid) => {
+    const q = query(collection(db, "bands"), where("ownerId", "==", uid));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+};
+
+export const createBand = async (user, bandName = "Mi Nueva Banda") => {
+    const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const bandData = {
+        nombre: bandName,
+        ownerId: user.uid,
+        inviteCode: inviteCode,
+        customId: generateIdCode('band'),
+        createdAt: new Date().toISOString(),
+        members: [user.uid],
+        admins: [user.uid]
+    };
+    const bandRef = await addDoc(collection(db, "bands"), bandData);
+
+    await addDoc(collection(db, "bands", bandRef.id, "musicians"), {
+        uid: user.uid,
+        email: user.email,
+        nombre: user.displayName || 'Usuario',
+        role: 'Admin',
+        joinedAt: new Date().toISOString()
+    });
+
+    return { id: bandRef.id, ...bandData };
+};
+
+export const updateBand = async (bandId, data) => {
+    const bandRef = doc(db, "bands", bandId);
+    await updateDoc(bandRef, data);
+};
+
+export const updateBandMetadata = updateBand;
+
+// --- MEMBERS / JOINING ---
+export const getBandByInviteCode = async (inviteCode) => {
+    const q = query(collection(db, "bands"), where("inviteCode", "==", inviteCode.toUpperCase()));
+    const querySnapshot = await getDocs(q);
+    if (!querySnapshot.empty) {
+        return { id: querySnapshot.docs[0].id, ...querySnapshot.docs[0].data() };
+    }
+    return null;
+};
+
+export const joinBand = async (bandId, user, role = 'Miembro') => {
+    const bandRef = doc(db, "bands", bandId);
+    const bandSnap = await getDoc(bandRef);
+    if (!bandSnap.exists()) throw new Error("La banda no existe");
+
+    const bandData = bandSnap.data();
+    if (bandData.members.includes(user.uid)) return;
+
+    await updateDoc(bandRef, {
+        members: [...bandData.members, user.uid]
+    });
+
+    await addDoc(collection(db, "bands", bandId, "musicians"), {
+        uid: user.uid,
+        email: user.email,
+        nombre: user.displayName || 'Músico',
+        role: role,
+        customId: generateIdCode('member'),
+        joinedAt: new Date().toISOString()
+    });
+};
 
 // --- CHAT / MESSAGES ---
 export const getMessages = (bandId, entityType, entityId, callback) => {
-    // entityType can be 'general', 'song', 'gig'
     const path = `bands/${bandId}/messages`;
     const q = query(
         collection(db, path),
@@ -28,44 +105,7 @@ export const sendMessage = async (bandId, messageData) => {
     });
 };
 
-// --- BANDS ---
-export const getBand = async (bandId) => {
-    const docRef = doc(db, "bands", bandId);
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-        return { id: docSnap.id, ...docSnap.data() };
-    }
-    return null;
-};
-
-export const getBandsByUser = async (uid) => {
-    const q = query(collection(db, "bands"), where("ownerId", "==", uid));
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-};
-
-export const createBand = async (user) => {
-    const bandData = {
-        nombre: "Mi Nueva Banda",
-        ownerId: user.uid,
-        createdAt: new Date().toISOString()
-    };
-    const bandRef = await addDoc(collection(db, "bands"), bandData);
-    return bandRef.id;
-};
-
-export const updateBand = async (bandId, data) => {
-    const bandRef = doc(db, "bands", bandId);
-    await updateDoc(bandRef, data);
-};
-
-export const updateBandMetadata = async (bandId, metadata) => {
-    const bandRef = doc(db, "bands", bandId);
-    await updateDoc(bandRef, { metadata: metadata });
-};
-
-
-// --- GENERIC CRUD HELPER ---
+// --- GENERIC CRUD HELPERS ---
 const getCollection = async (coll, bandId) => {
     if (!bandId) return [];
     const q = query(collection(db, "bands", bandId, coll));
@@ -75,7 +115,14 @@ const getCollection = async (coll, bandId) => {
 
 const addItem = async (coll, bandId, item) => {
     if (!bandId) throw new Error("No band selected");
-    const docRef = await addDoc(collection(db, "bands", bandId, coll), item);
+    // Map collection name to entity type for code generation
+    const typeMap = { 'songs': 'song', 'gear': 'gear', 'musicians': 'member' };
+    const entityType = typeMap[coll] || 'other';
+
+    const docRef = await addDoc(collection(db, "bands", bandId, coll), {
+        ...item,
+        customId: item.customId || generateIdCode(entityType)
+    });
     return docRef.id;
 };
 
@@ -89,16 +136,44 @@ const deleteItem = async (coll, bandId, itemId) => {
     await deleteDoc(itemRef);
 };
 
+// --- BULK OPERATIONS ---
+const bulkAddItems = async (coll, bandId, items) => {
+    if (!bandId || !items.length) return;
+    const batch = writeBatch(db);
+    const collRef = collection(db, "bands", bandId, coll);
+
+    const typeMap = { 'songs': 'song', 'gear': 'gear', 'musicians': 'member' };
+    const entityType = typeMap[coll] || 'other';
+
+    items.forEach(item => {
+        const docRef = doc(collRef);
+        batch.set(docRef, {
+            ...item,
+            customId: item.customId || generateIdCode(entityType),
+            createdAt: serverTimestamp()
+        });
+    });
+
+    await batch.commit();
+};
+
 // --- SPECIFIC EXPORTS ---
 export const getSongs = (bandId) => getCollection('songs', bandId);
 export const addSong = (bandId, song) => addItem('songs', bandId, song);
 export const updateSong = (bandId, id, data) => updateItem('songs', bandId, id, data);
 export const deleteSong = (bandId, id) => deleteItem('songs', bandId, id);
+export const bulkAddSongs = (bandId, songs) => bulkAddItems('songs', bandId, songs);
 
-export const getMembers = (bandId) => getCollection('members', bandId);
-export const addMember = (bandId, member) => addItem('members', bandId, member);
-export const updateMember = (bandId, id, data) => updateItem('members', bandId, id, data);
-export const deleteMember = (bandId, id) => deleteItem('members', bandId, id);
+export const getMusicians = (bandId) => getCollection('musicians', bandId);
+export const addMusician = (bandId, musician) => addItem('musicians', bandId, musician);
+export const updateMusician = (bandId, id, data) => updateItem('musicians', bandId, id, data);
+export const deleteMusician = (bandId, id) => deleteItem('musicians', bandId, id);
+
+// Aliases for compatibility
+export const getMembers = getMusicians;
+export const addMember = addMusician;
+export const updateMember = updateMusician;
+export const deleteMember = deleteMusician;
 
 export const getRehearsals = (bandId) => getCollection('rehearsals', bandId);
 export const addRehearsal = (bandId, log) => addItem('rehearsals', bandId, log);
@@ -114,9 +189,23 @@ export const getGear = (bandId) => getCollection('gear', bandId);
 export const addGear = (bandId, item) => addItem('gear', bandId, item);
 export const updateGear = (bandId, id, data) => updateItem('gear', bandId, id, data);
 export const deleteGear = (bandId, id) => deleteItem('gear', bandId, id);
+export const bulkAddGear = (bandId, gear) => bulkAddItems('gear', bandId, gear);
 
 export const getFinances = (bandId) => getCollection('finances', bandId);
 export const addFinance = (bandId, record) => addItem('finances', bandId, record);
 export const updateFinance = (bandId, id, data) => updateItem('finances', bandId, id, data);
 export const deleteFinance = (bandId, id) => deleteItem('finances', bandId, id);
 
+export const inviteUserToBand = async (bandId, email) => {
+    const invRef = collection(db, "bands", bandId, "invitations");
+    await addDoc(invRef, {
+        email: email,
+        invitedAt: serverTimestamp(),
+        status: 'pending'
+    });
+};
+
+export const updateUserProfile = async (uid, data) => {
+    const userRef = doc(db, "users", uid);
+    await updateDoc(userRef, data);
+};

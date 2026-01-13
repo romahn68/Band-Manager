@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useAuth } from '../AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { getMessages, sendMessage } from '../services/firestoreService';
 import { Send, MessageSquare } from 'lucide-react';
 

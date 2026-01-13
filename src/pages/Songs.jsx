@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useApp } from '../AppContext';
+import { useApp } from '../hooks/useApp';
 import { getSongs, addSong, updateSong, deleteSong } from '../services/firestoreService';
 import { Plus, Trash2, Edit2, Check, X, Search, FileText, MessageSquare } from 'lucide-react';
 import ChatSession from '../components/ChatSession';
@@ -13,30 +13,47 @@ const Songs = () => {
     const [search, setSearch] = useState('');
     const [selectedSong, setSelectedSong] = useState(null);
 
-    useEffect(() => {
-        if (activeBand) loadSongs();
-    }, [activeBand]);
-
-    const loadSongs = async () => {
+    const loadSongs = React.useCallback(async () => {
         if (!activeBand) return;
         const data = await getSongs(activeBand.id);
         setSongs(data);
-    };
+    }, [activeBand]);
+
+    useEffect(() => {
+        if (activeBand) loadSongs();
+    }, [activeBand, loadSongs]);
+
+    // Warn before leaving if form has unsaved changes
+    useEffect(() => {
+        const isDirty = formData.titulo || formData.letra || formData.acordes;
+        const handleBeforeUnload = (e) => {
+            if (showForm && isDirty) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        };
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }, [showForm, formData]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!formData.titulo || !formData.tonalidad) return;
+        if (!activeBand || !formData.titulo || !formData.tonalidad) return;
 
-        if (editingId) {
-            await updateSong(activeBand.id, editingId, formData);
+        try {
+            if (editingId) {
+                await updateSong(activeBand.id, editingId, formData);
+            } else {
+                await addSong(activeBand.id, formData);
+            }
+            setFormData({ titulo: '', tonalidad: '', letra: '', acordes: '' });
+            setShowForm(false);
             setEditingId(null);
-        } else {
-            await addSong(activeBand.id, formData);
+            loadSongs();
+        } catch (error) {
+            console.error("Error saving song:", error);
+            alert("Error al guardar la canción.");
         }
-
-        setFormData({ titulo: '', tonalidad: '', letra: '', acordes: '' });
-        setShowForm(false);
-        loadSongs();
     };
 
     const handleDelete = async (id) => {
@@ -59,10 +76,14 @@ const Songs = () => {
 
     return (
         <div className="container">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
                 <h1 style={{ color: 'var(--accent-primary)', margin: 0 }}>Biblioteca de Canciones</h1>
                 <button
-                    onClick={() => { setShowForm(!showForm); setEditingId(null); setFormData({ titulo: '', tonalidad: '', letra: '', acordes: '' }); }}
+                    onClick={() => {
+                        setShowForm(!showForm);
+                        setEditingId(null);
+                        setFormData({ titulo: '', tonalidad: '', letra: '', acordes: '' });
+                    }}
                     style={{ background: 'var(--accent-secondary)', color: 'white', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
                 >
                     {showForm ? <X size={20} /> : <Plus size={20} />} {showForm ? 'Cancelar' : 'Nueva Canción'}
@@ -114,7 +135,7 @@ const Songs = () => {
                 </form>
             )}
 
-            <div style={{ display: 'grid', gridTemplateColumns: selectedSong ? '1fr 350px' : '1fr', gap: '2rem', transition: 'all 0.3s ease' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: selectedSong && window.innerWidth > 1024 ? '1fr 350px' : '1fr', gap: '2rem', transition: 'all 0.3s ease' }}>
                 <div>
                     <div className="glass" style={{ padding: '0.5rem 1rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <Search size={20} color="var(--text-secondary)" />
@@ -174,7 +195,7 @@ const Songs = () => {
 
                 {selectedSong && (
                     <div className="no-print">
-                        <div style={{ position: 'sticky', top: '2rem' }}>
+                        <div style={{ position: window.innerWidth > 1024 ? 'sticky' : 'relative', top: '2rem' }}>
                             <div className="glass" style={{ padding: '1.5rem', marginBottom: '1rem' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                                     <h2 style={{ fontSize: '1.2rem', margin: 0 }}>{selectedSong.titulo}</h2>

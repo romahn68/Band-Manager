@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useApp } from '../AppContext';
+import { useApp } from '../hooks/useApp';
 import { getGigs, addGig, deleteGig, getSongs } from '../services/firestoreService';
 import { Plus, Trash2, Calendar as CalendarIcon, GripVertical, X, Music, Printer } from 'lucide-react';
 import { Reorder } from 'framer-motion';
@@ -12,19 +12,22 @@ const Gigs = () => {
     const [showForm, setShowForm] = useState(false);
     const [formData, setFormData] = useState({ fecha: '', setlist: [] });
 
-    useEffect(() => {
-        if (activeBand) {
-            loadData();
-        }
-    }, [activeBand]);
-
-    const loadData = async () => {
+    const loadData = React.useCallback(async () => {
         if (!activeBand) return;
         const gData = await getGigs(activeBand.id);
         const sData = await getSongs(activeBand.id);
         setGigs(gData.sort((a, b) => a.fecha.localeCompare(b.fecha)));
         setSongs(sData);
-    };
+    }, [activeBand]);
+
+    useEffect(() => {
+        if (activeBand) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            loadData();
+        }
+    }, [activeBand, loadData]);
+
+
 
     const handleAdd = async (e) => {
         e.preventDefault();
@@ -58,7 +61,7 @@ const Gigs = () => {
 
     return (
         <div className="container">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
                 <h1 style={{ color: 'var(--accent-primary)', margin: 0 }}>Próximos Conciertos</h1>
                 <button
                     onClick={() => setShowForm(!showForm)}
