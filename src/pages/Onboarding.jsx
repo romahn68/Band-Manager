@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
@@ -6,7 +6,7 @@ import { doc, setDoc } from 'firebase/firestore';
 import { User, Calendar, Briefcase } from 'lucide-react';
 
 const Onboarding = () => {
-    const { currentUser, setUserProfile } = useAuth();
+    const { currentUser, userProfile, setUserProfile } = useAuth();
     const navigate = useNavigate();
     const [formData, setFormData] = useState({
         fullName: '',
@@ -16,6 +16,12 @@ const Onboarding = () => {
         roleInBand: 'musico' // Default
     });
     const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        if (currentUser && userProfile) {
+            navigate('/dashboard');
+        }
+    }, [currentUser, userProfile, navigate]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();

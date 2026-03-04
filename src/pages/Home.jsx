@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Music, Calendar, DollarSign, Package, Cloud, ChevronRight, LogIn } from 'lucide-react';
+// eslint-disable-next-line no-unused-vars
 import { motion } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 
@@ -148,7 +149,7 @@ const Home = () => {
                     />
                     <FeatureCard
                         icon={<Calendar />}
-                        title="Gigs & Rehearsals"
+                        title="Ensayos y Conciertos"
                         desc="Gestiona tus eventos, itinerarios y avisos a músicos sin complicaciones."
                     />
                     <FeatureCard

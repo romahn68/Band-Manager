@@ -1,0 +1,98 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Función auxiliar para verificar si el usuario está autenticado
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Función para verificar si el usuario es miembro de la banda
+    function isMember(bandId) {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/bands/$(bandId)/musicians/$(request.auth.uid));
+    }
+
+    // Función para obtener el rol del usuario
+    function getRole(bandId) {
+      return get(/databases/$(database)/documents/bands/$(bandId)/musicians/$(request.auth.uid)).data.role;
+    }
+
+    function isAdmin(bandId) {
+      return isMember(bandId) && getRole(bandId) == 'Admin';
+    }
+
+    // Helper: Check if user is in the 'members' array of the band doc (Legacy/Fallback check)
+    function isLegacyMember(bandId) {
+      // access the band document directly
+      let bandData = get(/databases/$(database)/documents/bands/$(bandId)).data;
+      return request.auth.uid in bandData.members || request.auth.uid == bandData.ownerId;
+    }
+
+    function isManager(bandId) {
+      // Allow if standard role check passes OR if they are the owner (fail-safe)
+      return (isMember(bandId) && (getRole(bandId) == 'Manager' || getRole(bandId) == 'Admin')) 
+             || (isAuthenticated() && get(/databases/$(database)/documents/bands/$(bandId)).data.ownerId == request.auth.uid);
+    }
+
+    // Usuarios: Solo el dueño puede leer/escribir su perfil, o Devs pueden listar todos
+    match /users/{userId} {
+      allow read, write: if isAuthenticated() && (
+        request.auth.uid == userId || 
+        request.auth.token.email in ['oscarromahn@gmail.com', 'al.romahn@gmail.com', 'test@bandmanager.com']
+      );
+    }
+
+    // Bandas: 
+    match /bands/{bandId} {
+      // Cualquier usuario autenticado puede crear una banda
+      allow create: if isAuthenticated();
+      
+      // Solo miembros pueden leer la banda
+      allow get: if isMember(bandId);
+      
+      // Permitir listado limitado para búsqueda por código de invitación
+      allow list: if isAuthenticated() && 
+        (request.query.limit <= 1 && request.query.filters.size() == 1 && 'inviteCode' in request.query.filters);
+
+      // Solo Admins pueden actualizar la banda (nombre, configuración)
+      allow update: if isAdmin(bandId);
+      
+      // Subcolecciones
+      
+      // Finances: Solo Managers y Admins
+      match /finances/{docId} {
+        allow read, write: if isManager(bandId);
+      }
+
+      // Musicians: 
+      match /musicians/{memberId} {
+        allow read: if isMember(bandId) || isLegacyMember(bandId);
+        // Allow write if Manager OR if user is writing to their own UID slot (Migration)
+        allow write: if isManager(bandId) || (request.auth.uid == memberId && isLegacyMember(bandId));
+      }
+
+      // Generic Content (Songs, Gigs, Gear, Rehearsals)
+      match /songs/{documentId} { allow read, write: if isMember(bandId); }
+      match /gigs/{documentId} { allow read, write: if isMember(bandId); }
+      match /gear/{documentId} { allow read, write: if isMember(bandId); }
+      match /rehearsals/{documentId} { allow read, write: if isMember(bandId); }
+      match /instruments/{documentId} { allow read, write: if isMember(bandId); }
+
+      // Sistema de Comentarios
+      match /comments/{commentId} {
+        allow read: if isMember(bandId);
+        allow create: if isMember(bandId) && request.resource.data.author.uid == request.auth.uid;
+        allow update, delete: if isMember(bandId) && (
+          resource.data.author.uid == request.auth.uid || isAdmin(bandId)
+        );
+      }
+    }
+
+    // System Settings (Feature Flags) - Global
+    match /system_settings/{docId} {
+      allow read: if isAuthenticated(); // All users need to read flags (e.g. maintenance mode)
+      allow write: if isAuthenticated() && request.auth.token.email in ['oscarromahn@gmail.com', 'al.romahn@gmail.com', 'test@bandmanager.com'];
+    }
+  }
+}

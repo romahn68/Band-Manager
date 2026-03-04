@@ -1,36 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../hooks/useApp';
-import { getSongs, getMusicians, getRehearsals, getGigs } from '../services/firestoreService';
-import { Music, Users, Mic2, Calendar, Edit2, ArrowRight } from 'lucide-react';
+import { getSongsCount, getMusiciansCount, getRehearsalsCount, getGigsCount, getUpcomingGigs } from '../services/firestoreService';
+import { Music, Users, Mic2, Calendar, Edit2, ArrowRight, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import SmartTuner from '../components/SmartTuner';
+import StatCard from '../components/StatCard';
+import styles from './Dashboard.module.css';
+// eslint-disable-next-line no-unused-vars
+import { motion, AnimatePresence } from 'framer-motion';
 
-const StatCard = ({ icon, label, value, color, to, navigate }) => {
-    const Icon = icon;
-    return (
-        <div
-            onClick={() => navigate(to)}
-            className="glass"
-            style={{
-                padding: '1.5rem',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '0.5rem',
-                cursor: 'pointer',
-                transition: 'transform 0.2s',
-                borderTop: `4px solid ${color}`
-            }}
-            onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-5px)'}
-            onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
-        >
-            <div style={{ background: `${color}20`, padding: '0.75rem', borderRadius: '50%' }}>
-                <Icon size={24} color={color} />
-            </div>
-            <h3 style={{ fontSize: '2rem', margin: 0 }}>{value}</h3>
-            <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{label}</span>
-        </div>
-    );
+const containerVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: {
+        opacity: 1,
+        y: 0,
+        transition: {
+            duration: 0.6,
+            staggerChildren: 0.1
+        }
+    }
+};
+
+const itemVariants = {
+    hidden: { opacity: 0, scale: 0.9 },
+    visible: { opacity: 1, scale: 1, transition: { type: 'spring', stiffness: 300, damping: 20 } }
 };
 
 const Dashboard = () => {
@@ -41,8 +34,8 @@ const Dashboard = () => {
     const [isEditingName, setIsEditingName] = useState(false);
     const [tempName, setTempName] = useState(activeBand?.nombre || '');
     const [prevBandId, setPrevBandId] = useState(activeBand?.id);
+    const [loading, setLoading] = useState(true);
 
-    // Sync state during render if band changes (avoids effect-based cascading renders)
     if (activeBand?.id !== prevBandId) {
         setPrevBandId(activeBand?.id);
         setTempName(activeBand?.nombre || '');
@@ -50,19 +43,29 @@ const Dashboard = () => {
 
     const loadStats = React.useCallback(async () => {
         if (!activeBand) return;
+        setLoading(true);
+        try {
+            // Parallel execution for performance (Architect Rule #1)
+            const [sCount, mCount, rCount, gCount, nextGigs] = await Promise.all([
+                getSongsCount(activeBand.id),
+                getMusiciansCount(activeBand.id),
+                getRehearsalsCount(activeBand.id),
+                getGigsCount(activeBand.id), // We now use countFromServer (optimization)
+                getUpcomingGigs(activeBand.id, 1) // Optimized query for hero widget
+            ]);
 
-        const s = await getSongs(activeBand.id);
-        const m = await getMusicians(activeBand.id);
-        const r = await getRehearsals(activeBand.id);
-        const g = await getGigs(activeBand.id);
+            setStats({
+                songs: sCount,
+                musicians: mCount,
+                rehearsals: rCount,
+                gigs: gCount
+            });
 
-        const today = new Date().toISOString().split('T')[0];
-        const upcomingGigs = g
-            .filter(gig => gig.fecha >= today)
-            .sort((a, b) => a.fecha.localeCompare(b.fecha));
-
-        setStats({ songs: s.length, musicians: m.length, rehearsals: r.length, gigs: g.length });
-        setNextGig(upcomingGigs[0] || null);
+            setNextGig(nextGigs[0] || null);
+        } catch (error) {
+            console.error("Error loading dashboard stats:", error);
+        }
+        setLoading(false);
     }, [activeBand]);
 
     useEffect(() => {
@@ -78,116 +81,129 @@ const Dashboard = () => {
     };
 
     return (
-        <div className="container">
+        <motion.div
+            className="container"
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+        >
             {/* Header / Band Name */}
-            <div style={{ textAlign: 'center', marginBottom: '3rem', position: 'relative' }}>
-                {isEditingName ? (
-                    <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', alignItems: 'center' }}>
-                        <input
-                            value={tempName}
-                            onChange={(e) => setTempName(e.target.value)}
-                            style={{ fontSize: '2rem', textAlign: 'center', width: 'auto', minWidth: '300px' }}
-                            autoFocus
-                        />
-                        <button onClick={handleUpdateName} style={{ background: 'var(--accent-secondary)', color: 'white' }}>OK</button>
-                    </div>
-                ) : (
-                    <div
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', cursor: 'pointer' }}
-                        onClick={() => setIsEditingName(true)}
-                    >
-                        <h1 style={{ margin: 0, textShadow: '0 0 20px rgba(139, 92, 246, 0.5)' }}>
-                            {activeBand?.nombre || 'Mi Banda'}
-                        </h1>
-                        <Edit2 size={20} color="var(--text-secondary)" />
-                    </div>
-                )}
-                <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>Panel de Control</p>
-            </div>
+            <header className={styles.dashboardHeader}>
+                <AnimatePresence mode="wait">
+                    {isEditingName ? (
+                        <motion.div
+                            key="edit"
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.9 }}
+                            className={styles.editNameForm}
+                        >
+                            <input
+                                value={tempName}
+                                onChange={(e) => setTempName(e.target.value)}
+                                className={styles.editInput}
+                                autoFocus
+                                onKeyDown={(e) => e.key === 'Enter' && handleUpdateName()}
+                            />
+                            <button onClick={handleUpdateName} className={styles.saveBtn}>Guardar</button>
+                        </motion.div>
+                    ) : (
+                        <motion.div
+                            key="view"
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 10 }}
+                            className={styles.titleContainer}
+                            onClick={() => setIsEditingName(true)}
+                        >
+                            <h1>{activeBand?.nombre || 'Mi Banda'}</h1>
+                            <Edit2 size={24} color="var(--accent-primary)" />
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+                <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.4 }}
+                    className={styles.subtitle}
+                >
+                    <Zap size={16} inline style={{ marginRight: '8px', verticalAlign: 'middle' }} />
+                    Panel de Control Elite
+                </motion.p>
+            </header>
 
             {/* Next Gig Hero Widget */}
-            <div className="glass" style={{
-                padding: '2rem',
-                marginBottom: '2rem',
-                background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%)',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                gap: '1rem'
-            }}>
-                <div>
-                    <h3 style={{ color: 'var(--accent-secondary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <Calendar size={20} /> Próximo Evento
-                    </h3>
+            <motion.div
+                variants={itemVariants}
+                className={`glass ${styles.heroWidget} ${loading ? 'skeleton' : ''}`}
+            >
+                <div className={styles.heroContent}>
+                    <h3><Calendar size={24} /> Próximo Evento</h3>
                     {nextGig ? (
                         <div>
-                            <h2 style={{ fontSize: '1.8rem', margin: 0 }}>
+                            <h2 className={styles.heroTitle}>
                                 {new Date(nextGig.fecha).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
                             </h2>
-                            <p style={{ margin: '0.5rem 0 0 0', color: 'var(--text-primary)' }}>
-                                {nextGig.setlist.length} canciones en el setlist
+                            <p className={styles.heroText}>
+                                {nextGig.setlist.length} canciones preparadas para el show
                             </p>
                         </div>
                     ) : (
                         <div>
-                            <h2 style={{ fontSize: '1.5rem', margin: 0, color: 'var(--text-secondary)' }}>Nada programado</h2>
-                            <p style={{ margin: '0.5rem 0 0 0', color: 'var(--text-secondary)' }}>¡Es hora de buscar fechas!</p>
+                            <h2 className={styles.heroEmptyTitle}>Escenario Vacío</h2>
+                            <p className={styles.heroEmptyText}>Tu próxima gran fecha te está esperando.</p>
                         </div>
                     )}
                 </div>
-                <button
+                <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
                     onClick={() => navigate('/conciertos')}
-                    style={{ background: 'var(--accent-primary)', color: 'white', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                    className={styles.heroBtn}
                 >
-                    {nextGig ? 'Ver Detalles' : 'Agendar Concierto'} <ArrowRight size={18} />
-                </button>
-            </div>
+                    {nextGig ? 'Gestionar Show' : 'Programar Ahora'} <ArrowRight size={22} />
+                </motion.button>
+            </motion.div>
 
             {/* Dashboard Grid */}
-            <div style={{
-                display: 'grid',
-                gridTemplateColumns: window.innerWidth > 768 ? 'repeat(auto-fit, minmax(300px, 1fr))' : '1fr',
-                gap: '1.5rem'
-            }}>
-
+            <div className={styles.dashboardGrid}>
                 {/* Stats Section */}
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: window.innerWidth > 480 ? 'repeat(auto-fit, minmax(140px, 1fr))' : 'repeat(2, 1fr)',
-                    gap: '1rem',
-                    gridColumn: '1 / -1'
-                }}>
-                    <StatCard icon={Users} label="Músicos" value={stats.musicians} color="#f472b6" to="/musicos" navigate={navigate} />
-                    <StatCard icon={Music} label="Canciones" value={stats.songs} color="#8b5cf6" to="/biblioteca" navigate={navigate} />
-                    <StatCard icon={Mic2} label="Ensayos" value={stats.rehearsals} color="#10b981" to="/ensayos" navigate={navigate} />
-                    <StatCard icon={Calendar} label="Conciertos" value={stats.gigs} color="#3b82f6" to="/conciertos" navigate={navigate} />
+                <div className={styles.statsSection}>
+                    {loading ? (
+                        <>
+                            <div className={`glass ${styles.statCard} skeleton`} style={{ height: '120px' }} />
+                            <div className={`glass ${styles.statCard} skeleton`} style={{ height: '120px' }} />
+                            <div className={`glass ${styles.statCard} skeleton`} style={{ height: '120px' }} />
+                            <div className={`glass ${styles.statCard} skeleton`} style={{ height: '120px' }} />
+                        </>
+                    ) : (
+                        <>
+                            <StatCard icon={Users} label="Músicos" value={stats.musicians} color="var(--accent-tertiary)" to="/musicos" navigate={navigate} />
+                            <StatCard icon={Music} label="Canciones" value={stats.songs} color="var(--accent-primary)" to="/biblioteca" navigate={navigate} />
+                            <StatCard icon={Mic2} label="Ensayos" value={stats.rehearsals} color="var(--accent-secondary)" to="/ensayos" navigate={navigate} />
+                            <StatCard icon={Calendar} label="Conciertos" value={stats.gigs} color="var(--accent-quaternary)" to="/conciertos" navigate={navigate} />
+                        </>
+                    )}
                 </div>
 
                 {/* AI Tools Section */}
-                <div style={{ gridColumn: window.innerWidth > 768 ? '1 / span 1' : 'auto' }}>
+                <motion.div variants={itemVariants} className={styles.tunerSection}>
                     <SmartTuner />
-                </div>
+                </motion.div>
 
-                {/* Additional Quick Actions or Info */}
-                <div className="glass" style={{
-                    padding: '1.5rem',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '1rem',
-                    background: 'rgba(255,255,255,0.02)'
-                }}>
-                    <h3 style={{ margin: 0, color: 'var(--accent-secondary)', fontSize: '1.2rem' }}>Resumen</h3>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                        Tienes {nextGig ? '1 concierto próximo' : '0 conciertos próximos'}.
-                        Has registrado {stats.rehearsals} ensayos.
+                {/* Resumen Card */}
+                <motion.div variants={itemVariants} className={`glass ${styles.summaryCard}`}>
+                    <h3>Análisis de Actividad</h3>
+                    <p className={styles.summaryText}>
+                        Actualmente tienes {nextGig ? 'un show confirmado' : 'ningún show activo'} en el radar.
+                        La banda ha completado {stats.rehearsals} sesiones de ensayo. Mantén el ritmo para el próximo éxito.
                     </p>
-                    <div style={{ marginTop: 'auto', borderTop: '1px solid var(--glass-border)', paddingTop: '1rem' }}>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Band Manager Cloud v1.0</span>
+                    <div className={styles.summaryFooter}>
+                        <span className={styles.versionTag}>BAND MANAGER PRO // v1.0</span>
                     </div>
-                </div>
+                </motion.div>
             </div>
-        </div>
+        </motion.div>
     );
 };
 

@@ -4,6 +4,7 @@ import { getRehearsals, addRehearsal, deleteRehearsal, getSongs } from '../servi
 import { Plus, Trash2, Calendar as CalendarIcon, GripVertical, X } from 'lucide-react';
 import { Reorder } from 'framer-motion';
 import SyncCalendarButton from '../components/SyncCalendarButton';
+import CommentsSection from '../components/CommentsSection';
 
 const Rehearsals = () => {
     const { activeBand } = useApp();
@@ -159,6 +160,14 @@ const Rehearsals = () => {
                                     </span>
                                 );
                             })}
+                        </div>
+                        {/* Sistema de Comentarios */}
+                        <div style={{ marginTop: '1.5rem' }}>
+                            <CommentsSection
+                                bandId={activeBand.id}
+                                parentId={r.id}
+                                parentType="rehearsal"
+                            />
                         </div>
                     </div>
                 ))}

@@ -16,10 +16,7 @@ const ImportExcel = ({ onImport, mapping, label = 'Importar Excel' }) => {
 
         try {
             const rawData = await readExcel(file);
-            console.log('Raw Excel Data:', rawData);
-
             const mappedData = mapImportedData(rawData, mapping);
-            console.log('Mapped Data:', mappedData);
 
             if (mappedData.length === 0) {
                 setError('El archivo parece estar vacío o no tiene el formato correcto.');

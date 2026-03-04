@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../hooks/useApp';
-import { getGigs, addGig, deleteGig, getSongs } from '../services/firestoreService';
-import { Plus, Trash2, Calendar as CalendarIcon, GripVertical, X, Music, Printer } from 'lucide-react';
+import { getGigsPaginated, addGig, deleteGig, getSongs } from '../services/firestoreService';
+import { Plus, Trash2, Calendar as CalendarIcon, GripVertical, X, Music, Printer, ArrowDown } from 'lucide-react';
 import { Reorder } from 'framer-motion';
 import SyncCalendarButton from '../components/SyncCalendarButton';
+import CommentsSection from '../components/CommentsSection';
 
 const Gigs = () => {
     const { activeBand } = useApp();
@@ -12,20 +13,48 @@ const Gigs = () => {
     const [showForm, setShowForm] = useState(false);
     const [formData, setFormData] = useState({ fecha: '', setlist: [] });
 
-    const loadData = React.useCallback(async () => {
+    // Pagination state
+    const [lastVisible, setLastVisible] = useState(null);
+    const [hasMore, setHasMore] = useState(false);
+    const [loading, setLoading] = useState(false);
+
+    const loadInitial = React.useCallback(async () => {
         if (!activeBand) return;
-        const gData = await getGigs(activeBand.id);
-        const sData = await getSongs(activeBand.id);
-        setGigs(gData.sort((a, b) => a.fecha.localeCompare(b.fecha)));
-        setSongs(sData);
+        setLoading(true);
+        try {
+            const { data, lastVisible: lastDoc } = await getGigsPaginated(activeBand.id, 10, null);
+            setGigs(data);
+            setLastVisible(lastDoc);
+            setHasMore(data.length === 10);
+
+            const sData = await getSongs(activeBand.id);
+            setSongs(sData);
+        } catch (error) {
+            console.error("Error loading gigs:", error);
+        }
+        setLoading(false);
     }, [activeBand]);
+
+    const loadMore = async () => {
+        if (!activeBand || loading || !hasMore) return;
+        setLoading(true);
+        try {
+            const { data, lastVisible: lastDoc } = await getGigsPaginated(activeBand.id, 10, lastVisible);
+            setGigs(prev => [...prev, ...data]);
+            setLastVisible(lastDoc);
+            setHasMore(data.length === 10);
+        } catch (error) {
+            console.error("Error loading more gigs:", error);
+        }
+        setLoading(false);
+    };
 
     useEffect(() => {
         if (activeBand) {
             // eslint-disable-next-line react-hooks/set-state-in-effect
-            loadData();
+            loadInitial();
         }
-    }, [activeBand, loadData]);
+    }, [activeBand, loadInitial]);
 
 
 
@@ -35,7 +64,7 @@ const Gigs = () => {
         await addGig(activeBand.id, formData);
         setFormData({ fecha: '', setlist: [] });
         setShowForm(false);
-        loadData();
+        loadInitial(); // Reload from scratch to show the new gig (likely at top)
     };
 
     // toggleSong remains same
@@ -51,7 +80,8 @@ const Gigs = () => {
     const handleDelete = async (id) => {
         if (window.confirm('¿Eliminar este concierto?')) {
             await deleteGig(activeBand.id, id);
-            loadData();
+            // We could remove locally, but reloading ensures consistency
+            loadInitial();
         }
     };
 
@@ -181,6 +211,15 @@ const Gigs = () => {
                             </div>
                         </div>
 
+                        {/* Sistema de Comentarios */}
+                        <div style={{ padding: '0 1rem', marginBottom: '2rem' }}>
+                            <CommentsSection
+                                bandId={activeBand.id}
+                                parentId={g.id}
+                                parentType="gig"
+                            />
+                        </div>
+
                         {/* Hidden Print Template */}
                         <div className="print-only" style={{ padding: '40px' }}>
                             <div style={{ borderBottom: '2px solid black', marginBottom: '20px', paddingBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
@@ -216,7 +255,27 @@ const Gigs = () => {
                         </div>
                     </div>
                 ))}
-                {gigs.length === 0 && <p style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>No hay conciertos programados.</p>}
+                {gigs.length === 0 && !loading && <p style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>No hay conciertos programados.</p>}
+
+                {hasMore && (
+                    <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+                        <button
+                            onClick={loadMore}
+                            disabled={loading}
+                            style={{
+                                background: 'rgba(255, 255, 255, 0.05)',
+                                color: 'var(--accent-primary)',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                padding: '0.8rem 2rem',
+                                borderRadius: '30px'
+                            }}
+                        >
+                            {loading ? 'Cargando...' : <>Cargar más <ArrowDown size={18} /></>}
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );

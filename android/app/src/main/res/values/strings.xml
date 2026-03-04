@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Band Manager</string>
+    <string name="title_activity_main">Band Manager</string>
+    <string name="package_name">com.bandmanager.app</string>
+    <string name="custom_url_scheme">com.bandmanager.app</string>
+</resources>

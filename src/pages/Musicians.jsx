@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../hooks/useApp';
-import { getMembers as getMusicians, addMember as addMusician, deleteMember as deleteMusician, inviteUserToBand } from '../services/firestoreService';
-import { sendInvitationEmail } from '../services/emailService';
-import { Plus, Trash2, Mail, Loader2, Copy, Users } from 'lucide-react';
+import { getMusicians, addMusician, deleteMusician, inviteUserToBand } from '../services/firestoreService';
 import { generateIdCode } from '../utils/codeGenerator';
+import { sendInvitationEmail } from '../services/emailService';
+import { Users, Mail, Copy, Plus, Trash2, Loader2 } from 'lucide-react';
+import styles from './Musicians.module.css';
+import { AnimatePresence } from 'framer-motion';
 
 const Musicians = () => {
     const { activeBand } = useApp();
@@ -27,13 +29,14 @@ const Musicians = () => {
     const handleAddMusician = async (e) => {
         e.preventDefault();
         const form = e.target;
+
         const newMusician = {
             nombre: form.nombre.value,
             instrument: {
                 id: generateIdCode('instrument'),
                 nombre: form.instrumento.value
             },
-            email: form.email.value || '',
+            email: form.email?.value || '',
             role: form.role.value
         };
 
@@ -41,8 +44,10 @@ const Musicians = () => {
             await addMusician(activeBand.id, newMusician);
             form.reset();
             loadMusicians();
+            alert("Músico agregado correctamente");
         } catch (error) {
-            console.error(error);
+            console.error("Error adding musician:", error);
+            alert(`Error: ${error.message}`);
         }
     };
 
@@ -84,23 +89,31 @@ const Musicians = () => {
         alert("¡Enlace copiado al portapapeles!");
     };
 
-    if (loading) return <div className="container"><Loader2 className="animate-spin" /> Cargando músicos...</div>;
+    if (loading) return <div className={styles.container}><Loader2 className="animate-spin" /> Cargando músicos...</div>;
 
     return (
-        <div className="container">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
+        <div
+            className={styles.container}
+            // initial={{ opacity: 0, y: 20 }}
+            // animate={{ opacity: 1, y: 0 }}
+            style={{ animation: 'fadeIn 0.5s ease-out' }}
+        >
+            <div className={styles.header}>
                 <Users size={32} color="var(--accent-primary)" />
-                <h1 style={{ color: 'var(--accent-primary)' }}>Músicos de la Banda</h1>
+                <h1 className={styles.title}>Músicos de la Banda</h1>
             </div>
 
             {/* Invitation Section */}
-            <div className="glass" style={{ padding: '1.5rem', marginBottom: '2rem', borderLeft: '4px solid var(--accent-secondary)' }}>
-                <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem' }}>
+            <div
+                className={styles.inviteSection}
+                style={{ animation: 'slideInRight 0.5s ease-out' }}
+            >
+                <h3 className={styles.inviteHeader}>
                     <Mail size={18} color="var(--accent-secondary)" /> Invitar Músico vía Email
                 </h3>
-                <form onSubmit={handleInvite} style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end' }}>
-                    <div style={{ flex: 1 }}>
-                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Correo Electrónico</label>
+                <form onSubmit={handleInvite} className={styles.inviteForm}>
+                    <div className={styles.inputGroup}>
+                        <label className={styles.label}>Correo Electrónico</label>
                         <input
                             type="email"
                             name="inviteEmail"
@@ -109,26 +122,24 @@ const Musicians = () => {
                             onChange={(e) => setInviteEmail(e.target.value)}
                             disabled={inviting}
                             required
+                            className={styles.input}
                         />
                     </div>
                     <button
                         type="submit"
                         disabled={inviting}
-                        style={{ background: 'var(--accent-primary)', color: 'white', display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: '180px', justifyContent: 'center' }}
+                        className={styles.button}
                     >
                         {inviting ? <Loader2 size={18} className="animate-spin" /> : 'Enviar Invitación'}
                     </button>
                 </form>
                 {activeBand?.inviteCode && (
-                    <div style={{ marginTop: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
+                    <div className={styles.linkBox}>
                         <div>
-                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'block' }}>Enlace de Unión Rápida</span>
-                            <code style={{ fontSize: '0.9rem', color: 'var(--accent-secondary)' }}>{activeBand.inviteCode}</code>
+                            <span className={styles.label} style={{ marginBottom: 0 }}>Enlace de Unión Rápida</span>
+                            <code className={styles.linkCode}>{activeBand.inviteCode}</code>
                         </div>
-                        <button
-                            onClick={handleCopyLink}
-                            style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--accent-secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', fontSize: '0.9rem' }}
-                        >
+                        <button onClick={handleCopyLink} className={styles.copyButton}>
                             <Copy size={16} /> Copiar Link
                         </button>
                     </div>
@@ -136,52 +147,65 @@ const Musicians = () => {
             </div>
 
             {/* Formulario Agregar Manual */}
-            <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem' }}>Registro Manual de Músico</h3>
-            <form className="glass" onSubmit={handleAddMusician} style={{ padding: '1.5rem', marginBottom: '2rem', display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                <div style={{ flex: 1, minWidth: '150px' }}>
-                    <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.85rem' }}>Nombre</label>
-                    <input type="text" name="nombre" placeholder="Nombre completo" required />
+            <h3 className={styles.sectionTitle}>Registro Manual de Músico</h3>
+            <form
+                className={styles.addForm}
+                onSubmit={handleAddMusician}
+                style={{ animation: 'slideInUp 0.5s ease-out' }}
+            >
+                <div className={styles.inputGroup} style={{ minWidth: '150px' }}>
+                    <label className={styles.label}>Nombre</label>
+                    <input type="text" name="nombre" placeholder="Nombre completo" required className={styles.input} />
                 </div>
-                <div style={{ flex: 1, minWidth: '150px' }}>
-                    <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.85rem' }}>Instrumento</label>
-                    <input type="text" name="instrumento" placeholder="Ej. Batería" required />
+                <div className={styles.inputGroup} style={{ minWidth: '150px' }}>
+                    <label className={styles.label}>Instrumento</label>
+                    <input type="text" name="instrumento" placeholder="Ej. Batería" required className={styles.input} />
                 </div>
-                <div style={{ flex: 1, minWidth: '150px' }}>
-                    <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.85rem' }}>Rol en App</label>
-                    <select name="role" required style={{ width: '100%', padding: '0.7rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid var(--glass-border)' }}>
-                        <option value="member">Músico</option>
-                        <option value="admin">Administrador</option>
+                <div className={styles.inputGroup} style={{ minWidth: '150px' }}>
+                    <label className={styles.label}>Rol en App</label>
+                    <select name="role" required className={styles.select}>
+                        <option value="Miembro">Músico</option>
+                        <option value="Manager">Manager</option>
+                        <option value="Admin">Administrador</option>
                     </select>
                 </div>
-                <button type="submit" style={{ background: 'var(--accent-secondary)', color: 'white', padding: '0.7rem 1.5rem' }}>
+                <button type="submit" className={styles.addButton}>
                     <Plus size={18} /> Agregar
                 </button>
             </form>
 
             {/* Lista de Músicos */}
-            <div style={{ display: 'grid', gap: '1rem' }}>
-                {musicians.map(musician => (
-                    <div key={musician.id} className="glass" style={{ padding: '1rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                            <h3 style={{ margin: 0, fontSize: '1.1rem' }}>{musician.nombre}</h3>
-                            <div style={{ display: 'flex', gap: '1.5rem', marginTop: '0.5rem' }}>
-                                <span style={{ fontSize: '0.85rem', color: 'var(--accent-secondary)', fontWeight: 'bold', background: 'rgba(139, 92, 246, 0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>
-                                    {musician.customId || 'SIN ID'}
-                                </span>
-                                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                                    {musician.instrument?.nombre || musician.instrumento || 'Sin instrumento'}
-                                    <small style={{ opacity: 0.5, marginLeft: '0.4rem' }}>({musician.instrument?.id || 'NO-ID'})</small>
-                                </span>
-                                <span style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.4)' }}>{musician.role === 'admin' ? 'Administrador' : 'Músico'}</span>
+            <div className={styles.grid}>
+                <AnimatePresence>
+                    {musicians.map(musician => (
+                        <div
+                            key={musician.id}
+                            className={styles.card}
+                            style={{ animation: 'zoomIn 0.3s ease-out' }}
+                        >
+                            <div>
+                                <h3 className={styles.cardName}>{musician.nombre}</h3>
+                                <div className={styles.cardMeta}>
+                                    <span className={styles.idBadge}>
+                                        {musician.customId || 'SIN ID'}
+                                    </span>
+                                    <span className={styles.instrument}>
+                                        {musician.instrument?.nombre || musician.instrumento || 'Sin instrumento'}
+                                    </span>
+                                    <span className={styles.roleBadge} data-role={musician.role}>
+                                        {musician.role === 'Admin' ? 'Administrador' : musician.role === 'Manager' ? 'Manager' : 'Músico'}
+                                    </span>
+                                </div>
                             </div>
+                            <button onClick={() => handleDelete(musician.id)} className={styles.deleteButton}>
+                                <Trash2 size={18} />
+                            </button>
                         </div>
-                        <button onClick={() => handleDelete(musician.id)} style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', padding: '0.6rem', borderRadius: '8px' }}>
-                            <Trash2 size={18} />
-                        </button>
-                    </div>
-                ))}
+                    ))}
+                </AnimatePresence>
+
                 {musicians.length === 0 && (
-                    <div className="glass" style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                    <div className={styles.emptyState}>
                         No hay músicos registrados aún.
                     </div>
                 )}

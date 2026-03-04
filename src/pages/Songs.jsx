@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../hooks/useApp';
-import { getSongs, addSong, updateSong, deleteSong } from '../services/firestoreService';
-import { Plus, Trash2, Edit2, Check, X, Search, FileText, MessageSquare } from 'lucide-react';
-import ChatSession from '../components/ChatSession';
+import { getSongsPaginated, addSong, updateSong, deleteSong } from '../services/firestoreService';
+import { Plus, Trash2, Edit2, Check, X, Search, FileText, MessageSquare, Camera } from 'lucide-react';
+import CommentsSection from '../components/CommentsSection';
+import { scanText } from '../services/ocrService';
+import { Capacitor } from '@capacitor/core';
 
 const Songs = () => {
     const { activeBand } = useApp();
@@ -13,15 +15,29 @@ const Songs = () => {
     const [search, setSearch] = useState('');
     const [selectedSong, setSelectedSong] = useState(null);
 
-    const loadSongs = React.useCallback(async () => {
+    const [lastVisible, setLastVisible] = useState(null);
+    const [hasMore, setHasMore] = useState(true);
+
+    const loadSongs = React.useCallback(async (isInitial = true) => {
         if (!activeBand) return;
-        const data = await getSongs(activeBand.id);
-        setSongs(data);
-    }, [activeBand]);
+
+        const cursor = isInitial ? null : lastVisible;
+        const { data, lastVisible: newLastVisible } = await getSongsPaginated(activeBand.id, 15, cursor);
+
+        if (isInitial) {
+            setSongs(data);
+        } else {
+            setSongs(prev => [...prev, ...data]);
+        }
+
+        setLastVisible(newLastVisible);
+        setHasMore(data.length === 15); // If we got exactly pageSize, there MIGHT be more
+    }, [activeBand, lastVisible]);
 
     useEffect(() => {
-        if (activeBand) loadSongs();
-    }, [activeBand, loadSongs]);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        if (activeBand) loadSongs(true);
+    }, [activeBand]);
 
     // Warn before leaving if form has unsaved changes
     useEffect(() => {
@@ -59,7 +75,7 @@ const Songs = () => {
     const handleDelete = async (id) => {
         if (window.confirm('¿Estás seguro de que deseas eliminar esta canción?')) {
             await deleteSong(activeBand.id, id);
-            loadSongs();
+            setSongs(songs.filter(s => s.id !== id));
         }
     };
 
@@ -114,7 +130,39 @@ const Songs = () => {
                         </div>
                     </div>
                     <div style={{ marginBottom: '1rem' }}>
-                        <label style={{ display: 'block', marginBottom: '0.5rem' }}>Letra</label>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                            <label>Letra</label>
+                            {Capacitor.isNativePlatform() && (
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        try {
+                                            const text = await scanText();
+                                            if (text) {
+                                                setFormData(prev => ({
+                                                    ...prev,
+                                                    letra: prev.letra ? prev.letra + '\n\n' + text : text
+                                                }));
+                                            }
+                                        } catch (e) {
+                                            console.error(e);
+                                            alert("No se pudo escanear: " + e.message);
+                                        }
+                                    }}
+                                    style={{
+                                        padding: '0.3rem 0.6rem',
+                                        fontSize: '0.8rem',
+                                        background: 'rgba(16, 185, 129, 0.2)',
+                                        color: '#10b981',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.4rem'
+                                    }}
+                                >
+                                    <Camera size={14} /> Escanear
+                                </button>
+                            )}
+                        </div>
                         <textarea
                             rows="5"
                             value={formData.letra}
@@ -191,6 +239,27 @@ const Songs = () => {
                             </div>
                         ))}
                     </div>
+
+                    {/* Pagination Button */}
+                    {hasMore && !search && (
+                        <div style={{ textAlign: 'center', marginTop: '2rem' }}>
+                            <button
+                                onClick={() => loadSongs(false)}
+                                style={{
+                                    background: 'rgba(255,255,255,0.05)',
+                                    color: 'var(--text-secondary)',
+                                    border: '1px solid var(--glass-border)',
+                                    padding: '0.75rem 2rem'
+                                }}
+                            >
+                                Cargar más canciones...
+                            </button>
+                        </div>
+                    )}
+
+                    {search && filteredSongs.length === 0 && (
+                        <p style={{ textAlign: 'center', marginTop: '2rem', color: 'var(--text-secondary)' }}>No se encontraron canciones que coincidan con la búsqueda.</p>
+                    )}
                 </div>
 
                 {selectedSong && (
@@ -221,11 +290,10 @@ const Songs = () => {
                                     </div>
                                 )}
                             </div>
-                            <ChatSession
+                            <CommentsSection
                                 bandId={activeBand.id}
-                                entityType="song"
-                                entityId={selectedSong.id}
-                                title={selectedSong.titulo}
+                                parentId={selectedSong.id}
+                                parentType="song"
                             />
                         </div>
                     </div>

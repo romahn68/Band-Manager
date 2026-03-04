@@ -11,7 +11,10 @@ export const generateIdCode = (type) => {
         member: 'MU',
         gear: 'GR',
         song: 'SG',
-        instrument: 'IN'
+        instrument: 'IN',
+        rehearsal: 'RH',
+        gig: 'GG',
+        finance: 'FN'
     };
 
     const prefix = prefixes[type] || 'ID';

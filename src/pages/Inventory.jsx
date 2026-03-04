@@ -18,6 +18,7 @@ const Inventory = () => {
     }, [activeBand]);
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         if (activeBand) loadGear();
     }, [activeBand, loadGear]);
 

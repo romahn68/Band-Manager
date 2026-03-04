@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, UserPlus, LogIn } from 'lucide-react';
 
 const Login = () => {
-    const { loginWithGoogle, loginWithEmail, registerWithEmail, currentUser, userProfile } = useAuth();
+    const { loginWithGoogle, loginWithEmail, registerWithEmail, currentUser, userProfile, loading, profileLoading } = useAuth();
     const navigate = useNavigate();
     const [isRegister, setIsRegister] = useState(false);
     const [email, setEmail] = useState('');
@@ -12,18 +12,21 @@ const Login = () => {
     const [error, setError] = useState('');
 
     useEffect(() => {
-        if (currentUser) {
+        if (currentUser && !loading && !profileLoading) {
             const redirectTo = localStorage.getItem('redirectAfterLogin');
             if (redirectTo) {
                 localStorage.removeItem('redirectAfterLogin');
                 navigate(redirectTo);
-            } else if (!userProfile) {
-                navigate('/onboarding');
-            } else {
+            } else if (userProfile) {
                 navigate('/dashboard');
+            } else {
+                // Only redirect to onboarding if we are sure there is no profile
+                // AND we are not loading AND profile check is done.
+                // Note: AuthContext handles errors, so if we are here, it's a valid "New User"
+                navigate('/onboarding');
             }
         }
-    }, [currentUser, userProfile, navigate]);
+    }, [currentUser, userProfile, loading, profileLoading, navigate]);
 
     const handleGoogleLogin = async () => {
         try {
@@ -48,81 +51,71 @@ const Login = () => {
     };
 
     return (
-        <div className="container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '90vh', padding: '1rem' }}>
-            <h1 style={{ fontSize: '3.5rem', marginBottom: '1rem', textShadow: '0 0 20px #8b5cf6', textAlign: 'center' }}>Band Manager</h1>
+        <div className="container auth-container">
+            <h1 className="auth-title">Band Manager</h1>
 
-            <div className="glass" style={{ padding: '2.5rem', width: '100%', maxWidth: '450px' }}>
-                <h2 style={{ marginBottom: '2rem', textAlign: 'center', color: 'var(--accent-primary)' }}>
+            <div className="glass auth-card">
+                <h2 className="auth-subtitle">
                     {isRegister ? 'Crear Cuenta' : 'Iniciar Sesión'}
                 </h2>
 
-                {error && <div style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', padding: '0.8rem', borderRadius: '8px', marginBottom: '1.5rem', textAlign: 'center', fontSize: '0.9rem' }}>{error}</div>}
+                {error && <div className="error-alert">{error}</div>}
 
-                <form onSubmit={handleEmailAuth} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+                <form onSubmit={handleEmailAuth} className="auth-form">
                     <div className="input-group">
-                        <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Correo Electrónico</label>
-                        <div style={{ position: 'relative' }}>
-                            <Mail size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
+                        <label className="input-label">Correo Electrónico</label>
+                        <div className="input-wrapper">
+                            <Mail size={18} className="input-icon" />
                             <input
                                 type="email"
                                 placeholder="tu@correo.com"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
-                                style={{ paddingLeft: '3rem' }}
+                                className="input-with-icon"
                                 required
                             />
                         </div>
                     </div>
 
                     <div className="input-group">
-                        <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Contraseña</label>
-                        <div style={{ position: 'relative' }}>
-                            <Lock size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
+                        <label className="input-label">Contraseña</label>
+                        <div className="input-wrapper">
+                            <Lock size={18} className="input-icon" />
                             <input
                                 type="password"
                                 placeholder="••••••••"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                style={{ paddingLeft: '3rem' }}
+                                className="input-with-icon"
                                 required
                             />
                         </div>
                     </div>
 
-                    <button type="submit" style={{ background: 'var(--accent-primary)', color: 'white', fontSize: '1.1rem', marginTop: '1rem', padding: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
+                    <button type="submit" className="btn-primary">
                         {isRegister ? <><UserPlus size={20} /> Registrarse</> : <><LogIn size={20} /> Entrar</>}
                     </button>
                 </form>
 
-                <div style={{ margin: '2rem 0', display: 'flex', alignItems: 'center', gap: '1rem', color: 'var(--text-secondary)' }}>
-                    <div style={{ flex: 1, height: '1px', background: 'var(--glass-border)' }}></div>
+                <div className="auth-divider">
+                    <div className="divider-line"></div>
                     <span>O</span>
-                    <div style={{ flex: 1, height: '1px', background: 'var(--glass-border)' }}></div>
+                    <div className="divider-line"></div>
                 </div>
 
                 <button
                     onClick={handleGoogleLogin}
-                    style={{
-                        background: 'white',
-                        color: 'black',
-                        width: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '1rem',
-                        fontSize: '1rem',
-                        padding: '0.8rem'
-                    }}
+                    className="btn-google"
                 >
                     <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" width="20" />
                     Iniciar con Google
                 </button>
 
-                <p style={{ marginTop: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                <p className="auth-footer">
                     {isRegister ? '¿Ya tienes cuenta?' : '¿No tienes cuenta?'}
                     <button
                         onClick={() => setIsRegister(!isRegister)}
-                        style={{ background: 'none', color: 'var(--accent-secondary)', fontWeight: '600', padding: '0 0.5rem', cursor: 'pointer', border: 'none', boxShadow: 'none' }}
+                        className="btn-link"
                     >
                         {isRegister ? 'Inicia sesión aquí' : 'Regístrate aquí'}
                     </button>
@@ -133,4 +126,3 @@ const Login = () => {
 };
 
 export default Login;
-
