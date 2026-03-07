@@ -22,6 +22,11 @@ service cloud.firestore {
       return isMember(bandId) && getRole(bandId) == 'Admin';
     }
 
+    // Función para verificar Super Admin global (reemplaza uso de emails hardcodeados)
+    function isSuperAdmin() {
+      return isAuthenticated() && exists(/databases/$(database)/documents/super_admins/$(request.auth.uid));
+    }
+
     // Helper: Check if user is in the 'members' array of the band doc (Legacy/Fallback check)
     function isLegacyMember(bandId) {
       // access the band document directly
@@ -38,8 +43,7 @@ service cloud.firestore {
     // Usuarios: Solo el dueño puede leer/escribir su perfil, o Devs pueden listar todos
     match /users/{userId} {
       allow read, write: if isAuthenticated() && (
-        request.auth.uid == userId || 
-        request.auth.token.email in ['oscarromahn@gmail.com', 'al.romahn@gmail.com', 'test@bandmanager.com']
+        request.auth.uid == userId || isSuperAdmin()
       );
     }
 
@@ -92,7 +96,7 @@ service cloud.firestore {
     // System Settings (Feature Flags) - Global
     match /system_settings/{docId} {
       allow read: if isAuthenticated(); // All users need to read flags (e.g. maintenance mode)
-      allow write: if isAuthenticated() && request.auth.token.email in ['oscarromahn@gmail.com', 'al.romahn@gmail.com', 'test@bandmanager.com'];
+      allow write: if isSuperAdmin();
     }
   }
 }

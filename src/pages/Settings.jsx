@@ -167,8 +167,21 @@ const Settings = () => {
         }
     };
 
-    const songMapping = { 'Título': 'titulo', 'Tonalidad': 'tonalidad', 'Letra': 'letra', 'Notas': 'acordes', 'Código': 'customId' };
-    const gearMapping = { 'Nombre': 'name', 'Equipo': 'name', 'Categoría': 'category', 'Propietario': 'owner', 'Notas': 'notes', 'Código': 'customId' };
+    const songMapping = {
+        'Título': 'titulo', 'titulo': 'titulo', 'song_name': 'titulo', 'Nombre': 'titulo',
+        'Tonalidad': 'tonalidad', 'tonality': 'tonalidad', 'Key': 'tonalidad',
+        'Letra': 'letra', 'Lyrics': 'letra', 'lyrics': 'letra',
+        'Notas': 'acordes', 'Acordes': 'acordes', 'chords': 'acordes', 'Chords': 'acordes',
+        'Código': 'customId', 'song_id': 'customId', 'id': 'customId'
+    };
+
+    const gearMapping = {
+        'Nombre': 'name', 'Equipo': 'name', 'Item': 'name', 'gear_name': 'name',
+        'Categoría': 'category', 'Category': 'category',
+        'Propietario': 'owner', 'Owner': 'owner',
+        'Notas': 'notes', 'Notes': 'notes',
+        'Código': 'customId', 'gear_id': 'customId', 'id': 'customId'
+    };
 
     return (
         <div className="container">

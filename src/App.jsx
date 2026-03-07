@@ -56,25 +56,34 @@ import { motion, AnimatePresence } from 'framer-motion';
 const MainLayout = ({ children }) => {
   const { error } = useApp();
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
+  const [isMobile, setIsMobile] = React.useState(window.innerWidth <= 768);
+
+  React.useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-deep)' }}>
       <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
       <div className="main-content" style={{ position: 'relative', width: '100%' }}>
         {/* Mobile Header with Hamburger */}
-        <div className="mobile-only-header glass">
-          <button
-            onClick={() => setIsSidebarOpen(true)}
-            style={{ background: 'transparent', padding: '0.5rem', color: 'white', border: 'none', cursor: 'pointer' }}
-          >
-            <div style={{ width: '24px', height: '2px', background: 'var(--accent-primary)', marginBottom: '5px', borderRadius: '2px' }}></div>
-            <div style={{ width: '18px', height: '2px', background: 'var(--accent-primary)', marginBottom: '5px', borderRadius: '2px' }}></div>
-            <div style={{ width: '24px', height: '2px', background: 'var(--accent-primary)', borderRadius: '2px' }}></div>
-          </button>
-          <span style={{ marginLeft: '1rem', fontWeight: '900', letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-primary)' }}>
-            Band Manager <span style={{ color: 'var(--accent-primary)' }}>Pro</span>
-          </span>
-        </div>
+        {isMobile && (
+          <div className="mobile-only-header glass">
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              style={{ background: 'transparent', padding: '0.5rem', color: 'white', border: 'none', cursor: 'pointer' }}
+            >
+              <div style={{ width: '24px', height: '2px', background: 'var(--accent-primary)', marginBottom: '5px', borderRadius: '2px' }}></div>
+              <div style={{ width: '18px', height: '2px', background: 'var(--accent-primary)', marginBottom: '5px', borderRadius: '2px' }}></div>
+              <div style={{ width: '24px', height: '2px', background: 'var(--accent-primary)', borderRadius: '2px' }}></div>
+            </button>
+            <span style={{ marginLeft: '1rem', fontWeight: '900', letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-primary)' }}>
+              Band Manager <span style={{ color: 'var(--accent-primary)' }}>Pro</span>
+            </span>
+          </div>
+        )}
 
         {error && (
           <motion.div
@@ -115,14 +124,19 @@ function App() {
   const [checkingMaintenance, setCheckingMaintenance] = React.useState(true);
 
   React.useEffect(() => {
+    let unsubscribe;
+
     // Lazy load the subscription to avoid circular dependency issues during init if any
     import('./services/adminService').then(({ subscribeToSettings }) => {
-      const unsubscribe = subscribeToSettings((settings) => {
+      unsubscribe = subscribeToSettings((settings) => {
         setMaintenanceMode(settings?.maintenanceMode || false);
         setCheckingMaintenance(false);
       });
-      return () => unsubscribe();
     });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   if (checkingMaintenance) {

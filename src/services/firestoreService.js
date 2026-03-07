@@ -1,16 +1,7 @@
 import { db } from '../firebase';
 import { collection, query, where, getDocs, addDoc, doc, updateDoc, deleteDoc, getDoc, orderBy, onSnapshot, serverTimestamp, writeBatch, limit, limitToLast, startAfter, setDoc, getCountFromServer } from 'firebase/firestore';
 import { generateIdCode } from '../utils/codeGenerator';
-
-const ENTITY_TYPES = {
-    'songs': 'song',
-    'gear': 'gear',
-    'musicians': 'member',
-    'instruments': 'instrument',
-    'rehearsals': 'rehearsal',
-    'gigs': 'gig',
-    'finances': 'finance'
-};
+import { ENTITY_TYPES } from '../utils/constants';
 // --- BANDS ---
 export const getBand = async (bandId) => {
     const docRef = doc(db, "bands", bandId);
@@ -48,8 +39,6 @@ export const createBand = async (user, bandName = "Mi Nueva Banda") => {
 
     const memberData = {
         uid: user.uid,
-        email: user.email,
-        nombre: user.displayName || 'Usuario',
         role: 'Admin',
         customId: generateIdCode('member'),
         instrument: {
@@ -106,8 +95,6 @@ export const joinBand = async (bandId, user, role = 'Miembro') => {
 
     batch.set(memberRef, {
         uid: user.uid,
-        email: user.email,
-        nombre: user.displayName || 'Músico',
         role: role,
         customId: generateIdCode('member'),
         instrument: {
@@ -155,11 +142,32 @@ const getCollectionCount = async (coll, bandId) => {
     return snapshot.data().count;
 };
 
-const getCollection = async (coll, bandId) => {
+const getCollection = async (coll, bandId, limitCount = 100) => {
     if (!bandId) return [];
-    const q = query(collection(db, "bands", bandId, coll));
+    // Added safety limit to prevent massive unpaginated reads
+    const q = query(collection(db, "bands", bandId, coll), limit(limitCount));
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+};
+
+const getCollectionPaginated = async (coll, bandId, pageSize = 15, lastVisible = null, sortField = 'createdAt', sortDir = 'desc') => {
+    if (!bandId) return { data: [], lastVisible: null };
+
+    let q = query(
+        collection(db, "bands", bandId, coll),
+        orderBy(sortField, sortDir),
+        limit(pageSize)
+    );
+
+    if (lastVisible) {
+        q = query(q, startAfter(lastVisible));
+    }
+
+    const documentSnapshots = await getDocs(q);
+    const data = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const lastVisibleDoc = documentSnapshots.docs[documentSnapshots.docs.length - 1];
+
+    return { data, lastVisible: lastVisibleDoc };
 };
 
 const addItem = async (coll, bandId, item) => {
@@ -177,7 +185,6 @@ const addItem = async (coll, bandId, item) => {
     // Pro-structuring: Ensure core properties exist
     const structuredItem = {
         ...item,
-        id: docRef.id, // Standard ID
         customId: item.customId || generateIdCode(entityType),
         createdAt: item.createdAt || now,
         updatedAt: now,
@@ -217,7 +224,6 @@ const bulkAddItems = async (coll, bandId, items) => {
 
         batch.set(docRef, {
             ...item,
-            id: docRef.id,
             customId: item.customId || generateIdCode(entityType),
             createdAt: now,
             updatedAt: now,
@@ -262,7 +268,35 @@ export const updateSong = (bandId, id, data) => updateItem('songs', bandId, id, 
 export const deleteSong = (bandId, id) => deleteItem('songs', bandId, id);
 export const bulkAddSongs = (bandId, songs) => bulkAddItems('songs', bandId, songs);
 
-export const getMusicians = (bandId) => getCollection('musicians', bandId);
+export const getMusicians = async (bandId) => {
+    const musicians = await getCollection('musicians', bandId);
+    return Promise.all(musicians.map(async (m) => {
+        if (m.uid && !m.nombre) {
+            const userSnap = await getDoc(doc(db, "users", m.uid));
+            if (userSnap.exists()) {
+                const ud = userSnap.data();
+                return { ...m, nombre: ud.nombre, email: ud.email, photoURL: ud.photoURL };
+            }
+        }
+        return m;
+    }));
+};
+
+export const getMusiciansPaginated = async (bandId, pageSize = 15, lastVisible = null) => {
+    // Ordenar por joinedAt para no excluir documentos sin nombre
+    const result = await getCollectionPaginated('musicians', bandId, pageSize, lastVisible, 'joinedAt', 'asc');
+    const enrichedData = await Promise.all(result.data.map(async (m) => {
+        if (m.uid && !m.nombre) {
+            const userSnap = await getDoc(doc(db, "users", m.uid));
+            if (userSnap.exists()) {
+                const ud = userSnap.data();
+                return { ...m, nombre: ud.nombre, email: ud.email, photoURL: ud.photoURL };
+            }
+        }
+        return m;
+    }));
+    return { data: enrichedData, lastVisible: result.lastVisible };
+};
 export const addMusician = (bandId, musician) => addItem('musicians', bandId, musician);
 export const updateMusician = (bandId, id, data) => updateItem('musicians', bandId, id, data);
 export const deleteMusician = (bandId, id) => deleteItem('musicians', bandId, id);
@@ -274,6 +308,8 @@ export const updateMember = updateMusician;
 export const deleteMember = deleteMusician;
 
 export const getRehearsals = (bandId) => getCollection('rehearsals', bandId);
+export const getRehearsalsPaginated = (bandId, pageSize = 15, lastVisible = null) =>
+    getCollectionPaginated('rehearsals', bandId, pageSize, lastVisible, 'fecha', 'desc');
 export const addRehearsal = (bandId, log) => addItem('rehearsals', bandId, log);
 export const updateRehearsal = (bandId, id, data) => updateItem('rehearsals', bandId, id, data);
 export const deleteRehearsal = (bandId, id) => deleteItem('rehearsals', bandId, id);
@@ -317,12 +353,16 @@ export const updateGig = (bandId, id, data) => updateItem('gigs', bandId, id, da
 export const deleteGig = (bandId, id) => deleteItem('gigs', bandId, id);
 
 export const getGear = (bandId) => getCollection('gear', bandId);
+export const getGearPaginated = (bandId, pageSize = 15, lastVisible = null) =>
+    getCollectionPaginated('gear', bandId, pageSize, lastVisible, 'name', 'asc');
 export const addGear = (bandId, item) => addItem('gear', bandId, item);
 export const updateGear = (bandId, id, data) => updateItem('gear', bandId, id, data);
 export const deleteGear = (bandId, id) => deleteItem('gear', bandId, id);
 export const bulkAddGear = (bandId, gear) => bulkAddItems('gear', bandId, gear);
 
 export const getFinances = (bandId) => getCollection('finances', bandId);
+export const getFinancesPaginated = (bandId, pageSize = 15, lastVisible = null) =>
+    getCollectionPaginated('finances', bandId, pageSize, lastVisible, 'fecha', 'desc');
 export const addFinance = (bandId, record) => addItem('finances', bandId, record);
 export const updateFinance = (bandId, id, data) => updateItem('finances', bandId, id, data);
 export const deleteFinance = (bandId, id) => deleteItem('finances', bandId, id);
@@ -337,33 +377,12 @@ export const inviteUserToBand = async (bandId, email) => {
 };
 
 export const updateUserProfile = async (uid, data) => {
-    // 1. Instanciar batch atómico
-    const batch = writeBatch(db);
-
-    // 2. Actualizar maestro de usuario
+    // Solo actualizamos el maestro de usuario. Ya no se duplica en las subcolecciones.
     const userRef = doc(db, "users", uid);
-    batch.update(userRef, data);
-
-    // 3. FAN-OUT: Sincronizar copias en subcolecciones
     try {
-        const bands = await getBandsByUser(uid);
-
-        bands.forEach(band => {
-            const memberRef = doc(db, "bands", band.id, "musicians", uid);
-            // Solo sincronizar propiedades que existan en el modelo duplicado
-            const replicaData = { updatedAt: new Date().toISOString() };
-            if (data.nombre) replicaData.nombre = data.nombre;
-            // if (data.photoURL) replicaData.photoURL = data.photoURL; // Preparación para futuras exp.
-
-            batch.update(memberRef, replicaData);
-        });
-
-        // 4. Ejecutar toda la transacción de red unificada
-        await batch.commit();
-    } catch (error) {
-        console.error("Error sincronizando perfiles en Fan-out:", error);
-        // Fallback: Si el fan-out falla por permisos o red, al menos garantizar el perfil principal si no se rompió el batch antes
         await updateDoc(userRef, data);
-        throw new Error("El perfil se guardó pero la sincronización de bandas falló parcialmente.");
+    } catch (error) {
+        console.error("Error updating user profile:", error);
+        throw error;
     }
 };

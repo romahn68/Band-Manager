@@ -1,0 +1,25 @@
+rules_version = '2';
+
+// Craft rules based on data in your Firestore database
+// allow write: if firestore.get(
+//    /databases/(default)/documents/users/$(request.auth.uid)).data.isAdmin;
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Función para verificar si un usuario está autenticado
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Regla base para proteger todos los archivos subidos al sistema
+    match /bands/{bandId}/{allPaths=**} {
+      // Las lecturas son permitidas a cualquier usuario que tenga el enlace
+      allow read: if true; 
+      
+      // La subida y escritura es estricta: Auth + Max 2MB + Solo JPG y PDF
+      allow write: if isAuthenticated() 
+                   && request.resource.size < 2 * 1024 * 1024 // 2 Megabytes
+                   && request.resource.contentType.matches('application/pdf|image/jpeg|image/jpg');
+    }
+  }
+}

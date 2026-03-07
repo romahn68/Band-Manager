@@ -1,5 +1,5 @@
 
-import { ImageToText } from '@capacitor-community/image-to-text';
+import { Ocr } from '@capacitor-community/image-to-text';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 
 export const scanText = async () => {
@@ -15,7 +15,7 @@ export const scanText = async () => {
             throw new Error("No photo path found");
         }
 
-        const data = await ImageToText.detectText({
+        const data = await Ocr.detectText({
             filename: photo.path,
         });
 

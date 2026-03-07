@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../hooks/useApp';
-import { getRehearsals, addRehearsal, deleteRehearsal, getSongs } from '../services/firestoreService';
+import { getRehearsalsPaginated, addRehearsal, deleteRehearsal, getSongs } from '../services/firestoreService';
 import { Plus, Trash2, Calendar as CalendarIcon, GripVertical, X } from 'lucide-react';
 import { Reorder } from 'framer-motion';
 import SyncCalendarButton from '../components/SyncCalendarButton';
 import CommentsSection from '../components/CommentsSection';
+import AttachmentUploader from '../components/AttachmentUploader';
+import { updateRehearsal } from '../services/firestoreService';
 
 const Rehearsals = () => {
     const { activeBand } = useApp();
@@ -12,21 +14,48 @@ const Rehearsals = () => {
     const [songs, setSongs] = useState([]);
     const [showForm, setShowForm] = useState(false);
     const [formData, setFormData] = useState({ fecha: '', cancionesIds: [] });
+    const [lastVisible, setLastVisible] = useState(null);
+    const [hasMore, setHasMore] = useState(false);
+    const [loading, setLoading] = useState(false);
 
-    const loadData = React.useCallback(async () => {
+    const loadInitial = React.useCallback(async () => {
         if (!activeBand) return;
-        const rData = await getRehearsals(activeBand.id);
-        const sData = await getSongs(activeBand.id);
-        setRehearsals(rData.sort((a, b) => b.fecha.localeCompare(a.fecha)));
-        setSongs(sData);
+        setLoading(true);
+        try {
+            const { data, lastVisible: lastDoc } = await getRehearsalsPaginated(activeBand.id, 15, null);
+            setRehearsals(data);
+            setLastVisible(lastDoc);
+            setHasMore(data.length === 15);
+
+            const sData = await getSongs(activeBand.id);
+            setSongs(sData);
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setLoading(false);
+        }
     }, [activeBand]);
+
+    const loadMore = async () => {
+        if (!activeBand || loading || !hasMore) return;
+        setLoading(true);
+        try {
+            const { data, lastVisible: lastDoc } = await getRehearsalsPaginated(activeBand.id, 15, lastVisible);
+            setRehearsals(prev => [...prev, ...data]);
+            setLastVisible(lastDoc);
+            setHasMore(data.length === 15);
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
         if (activeBand) {
-            // eslint-disable-next-line react-hooks/set-state-in-effect
-            loadData();
+            loadInitial();
         }
-    }, [activeBand, loadData]);
+    }, [activeBand, loadInitial]);
 
 
 
@@ -36,7 +65,7 @@ const Rehearsals = () => {
         await addRehearsal(activeBand.id, formData);
         setFormData({ fecha: '', cancionesIds: [] });
         setShowForm(false);
-        loadData();
+        loadInitial();
     };
 
     // toggleSong remains same
@@ -52,7 +81,7 @@ const Rehearsals = () => {
     const handleDelete = async (id) => {
         if (window.confirm('¿Eliminar este registro de ensayo?')) {
             await deleteRehearsal(activeBand.id, id);
-            loadData();
+            loadInitial();
         }
     };
 
@@ -161,6 +190,18 @@ const Rehearsals = () => {
                                 );
                             })}
                         </div>
+                        {/* Sistema de Adjuntos (Storage) */}
+                        <AttachmentUploader
+                            bandId={activeBand.id}
+                            entityType="rehearsals"
+                            entityId={r.id}
+                            currentAttachments={r.attachments || []}
+                            onUploadComplete={async (newAttachments) => {
+                                await updateRehearsal(activeBand.id, r.id, { attachments: newAttachments });
+                                loadInitial(); // Recargar para reflejar cambios
+                            }}
+                        />
+
                         {/* Sistema de Comentarios */}
                         <div style={{ marginTop: '1.5rem' }}>
                             <CommentsSection
@@ -172,6 +213,14 @@ const Rehearsals = () => {
                     </div>
                 ))}
                 {rehearsals.length === 0 && <p style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>No hay ensayos registrados.</p>}
+
+                {hasMore && (
+                    <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+                        <button onClick={loadMore} disabled={loading} style={{ background: 'var(--accent-primary)', color: 'white', padding: '0.75rem 2rem', border: 'none', borderRadius: '30px', cursor: 'pointer' }}>
+                            {loading ? 'Cargando...' : 'Cargar más ensayos'}
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );

@@ -12,7 +12,11 @@
   /* Pink */
   --accent-quaternary: #3b82f6;
   /* Blue */
-  
+  --accent-danger: #ef4444;
+  /* Red */
+  --accent-warning: #fbbf24;
+  /* Yellow */
+
   --text-primary: #f3f4f6;
   --text-secondary: #9ca3af;
   --glass-border: rgba(255, 255, 255, 0.1);
@@ -508,8 +512,13 @@ textarea:focus {
 
 /* Skeleton Loaders */
 @keyframes shimmer {
-  0% { background-position: -1000px 0; }
-  100% { background-position: 1000px 0; }
+  0% {
+    background-position: -1000px 0;
+  }
+
+  100% {
+    background-position: 1000px 0;
+  }
 }
 
 .skeleton {
@@ -523,4 +532,30 @@ textarea:focus {
 
 .skeleton * {
   visibility: hidden;
+}
+
+/* Songs Layout Utils */
+.songs-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+  transition: all 0.3s ease;
+}
+
+@media (min-width: 1024px) {
+  .songs-layout.has-selected {
+    grid-template-columns: 1fr 350px;
+  }
+}
+
+.song-detail-panel {
+  position: relative;
+  top: 0;
+}
+
+@media (min-width: 1024px) {
+  .song-detail-panel {
+    position: sticky;
+    top: 2rem;
+  }
 }

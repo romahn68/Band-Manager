@@ -3,6 +3,7 @@ import { useApp } from '../hooks/useApp';
 import { getSongsPaginated, addSong, updateSong, deleteSong } from '../services/firestoreService';
 import { Plus, Trash2, Edit2, Check, X, Search, FileText, MessageSquare, Camera } from 'lucide-react';
 import CommentsSection from '../components/CommentsSection';
+import AttachmentUploader from '../components/AttachmentUploader';
 import { scanText } from '../services/ocrService';
 import { Capacitor } from '@capacitor/core';
 
@@ -17,27 +18,34 @@ const Songs = () => {
 
     const [lastVisible, setLastVisible] = useState(null);
     const [hasMore, setHasMore] = useState(true);
+    const [loading, setLoading] = useState(false);
 
     const loadSongs = React.useCallback(async (isInitial = true) => {
         if (!activeBand) return;
+        setLoading(true);
 
-        const cursor = isInitial ? null : lastVisible;
-        const { data, lastVisible: newLastVisible } = await getSongsPaginated(activeBand.id, 15, cursor);
+        try {
+            const cursor = isInitial ? null : lastVisible;
+            const { data, lastVisible: newLastVisible } = await getSongsPaginated(activeBand.id, 15, cursor);
 
-        if (isInitial) {
-            setSongs(data);
-        } else {
-            setSongs(prev => [...prev, ...data]);
+            if (isInitial) {
+                setSongs(data);
+            } else {
+                setSongs(prev => [...prev, ...data]);
+            }
+
+            setLastVisible(newLastVisible);
+            setHasMore(data.length === 15);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setLoading(false);
         }
-
-        setLastVisible(newLastVisible);
-        setHasMore(data.length === 15); // If we got exactly pageSize, there MIGHT be more
     }, [activeBand, lastVisible]);
 
     useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         if (activeBand) loadSongs(true);
-    }, [activeBand]);
+    }, [activeBand, loadSongs]);
 
     // Warn before leaving if form has unsaved changes
     useEffect(() => {
@@ -183,7 +191,7 @@ const Songs = () => {
                 </form>
             )}
 
-            <div style={{ display: 'grid', gridTemplateColumns: selectedSong && window.innerWidth > 1024 ? '1fr 350px' : '1fr', gap: '2rem', transition: 'all 0.3s ease' }}>
+            <div className={`songs-layout ${selectedSong ? 'has-selected' : ''}`}>
                 <div>
                     <div className="glass" style={{ padding: '0.5rem 1rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <Search size={20} color="var(--text-secondary)" />
@@ -196,55 +204,64 @@ const Songs = () => {
                         />
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
-                        {filteredSongs.map(song => (
-                            <div
-                                key={song.id}
-                                className="glass"
-                                onClick={() => setSelectedSong(selectedSong?.id === song.id ? null : song)}
-                                style={{
-                                    padding: '1.5rem',
-                                    position: 'relative',
-                                    cursor: 'pointer',
-                                    border: selectedSong?.id === song.id ? '2px solid var(--accent-primary)' : '1px solid var(--glass-border)'
-                                }}
-                            >
-                                <div style={{ position: 'absolute', top: '1rem', right: '1rem', display: 'flex', gap: '0.5rem' }}>
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); startEdit(song); }}
-                                        style={{ background: 'rgba(139, 92, 246, 0.1)', color: 'var(--accent-primary)', padding: '0.4rem' }}
-                                    >
-                                        <Edit2 size={16} />
-                                    </button>
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); handleDelete(song.id); }}
-                                        style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', padding: '0.4rem' }}
-                                    >
-                                        <Trash2 size={16} />
-                                    </button>
+                    {loading && songs.length === 0 ? (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
+                            {[1, 2, 3, 4, 5, 6].map(i => (
+                                <div key={i} className="glass skeleton" style={{ padding: '1.5rem', height: '140px' }} />
+                            ))}
+                        </div>
+                    ) : (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
+                            {filteredSongs.map(song => (
+                                <div
+                                    key={song.id}
+                                    className="glass"
+                                    onClick={() => setSelectedSong(selectedSong?.id === song.id ? null : song)}
+                                    style={{
+                                        padding: '1.5rem',
+                                        position: 'relative',
+                                        cursor: 'pointer',
+                                        border: selectedSong?.id === song.id ? '2px solid var(--accent-primary)' : '1px solid var(--glass-border)'
+                                    }}
+                                >
+                                    <div style={{ position: 'absolute', top: '1rem', right: '1rem', display: 'flex', gap: '0.5rem' }}>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); startEdit(song); }}
+                                            style={{ background: 'rgba(139, 92, 246, 0.1)', color: 'var(--accent-primary)', padding: '0.4rem' }}
+                                        >
+                                            <Edit2 size={16} />
+                                        </button>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleDelete(song.id); }}
+                                            style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', padding: '0.4rem' }}
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
+                                    <h3 style={{ margin: '0 0 0.25rem 0', color: 'var(--accent-secondary)' }}>{song.titulo}</h3>
+                                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                        <span style={{
+                                            background: 'rgba(255,255,255,0.05)',
+                                            padding: '0.2rem 0.6rem',
+                                            borderRadius: '20px',
+                                            fontSize: '0.8rem',
+                                            border: '1px solid var(--glass-border)'
+                                        }}>
+                                            {song.tonalidad}
+                                        </span>
+                                        {selectedSong?.id === song.id && <MessageSquare size={14} color="var(--accent-primary)" />}
+                                    </div>
                                 </div>
-                                <h3 style={{ margin: '0 0 0.25rem 0', color: 'var(--accent-secondary)' }}>{song.titulo}</h3>
-                                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                                    <span style={{
-                                        background: 'rgba(255,255,255,0.05)',
-                                        padding: '0.2rem 0.6rem',
-                                        borderRadius: '20px',
-                                        fontSize: '0.8rem',
-                                        border: '1px solid var(--glass-border)'
-                                    }}>
-                                        {song.tonalidad}
-                                    </span>
-                                    {selectedSong?.id === song.id && <MessageSquare size={14} color="var(--accent-primary)" />}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                            ))}
+                        </div>
+                    )}
 
                     {/* Pagination Button */}
                     {hasMore && !search && (
                         <div style={{ textAlign: 'center', marginTop: '2rem' }}>
                             <button
                                 onClick={() => loadSongs(false)}
+                                disabled={loading}
                                 style={{
                                     background: 'rgba(255,255,255,0.05)',
                                     color: 'var(--text-secondary)',
@@ -252,7 +269,7 @@ const Songs = () => {
                                     padding: '0.75rem 2rem'
                                 }}
                             >
-                                Cargar más canciones...
+                                {loading ? 'Cargando...' : 'Cargar más canciones'}
                             </button>
                         </div>
                     )}
@@ -264,7 +281,7 @@ const Songs = () => {
 
                 {selectedSong && (
                     <div className="no-print">
-                        <div style={{ position: window.innerWidth > 1024 ? 'sticky' : 'relative', top: '2rem' }}>
+                        <div className="song-detail-panel">
                             <div className="glass" style={{ padding: '1.5rem', marginBottom: '1rem' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                                     <h2 style={{ fontSize: '1.2rem', margin: 0 }}>{selectedSong.titulo}</h2>
@@ -290,6 +307,20 @@ const Songs = () => {
                                     </div>
                                 )}
                             </div>
+
+                            {/* Area para Adjuntos */}
+                            <AttachmentUploader
+                                bandId={activeBand.id}
+                                entityType="songs"
+                                entityId={selectedSong.id}
+                                currentAttachments={selectedSong.attachments || []}
+                                onUploadComplete={async (newAttachments) => {
+                                    await updateSong(activeBand.id, selectedSong.id, { attachments: newAttachments });
+                                    setSelectedSong(prev => ({ ...prev, attachments: newAttachments }));
+                                    loadSongs(false); // Recarga silenciosa
+                                }}
+                            />
+
                             <CommentsSection
                                 bandId={activeBand.id}
                                 parentId={selectedSong.id}

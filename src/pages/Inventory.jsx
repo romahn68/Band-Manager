@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../hooks/useApp';
-import { getGear, addGear, updateGear, deleteGear } from '../services/firestoreService';
+import { getGearPaginated, addGear, updateGear, deleteGear } from '../services/firestoreService';
 import { Plus, Trash2, Edit2, Check, X, Search, Pocket, Package, User } from 'lucide-react';
 
 const Inventory = () => {
@@ -10,17 +10,43 @@ const Inventory = () => {
     const [formData, setFormData] = useState({ name: '', category: 'Instrumento', owner: '', condition: 'Bueno', notes: '' });
     const [editingId, setEditingId] = useState(null);
     const [search, setSearch] = useState('');
+    const [lastVisible, setLastVisible] = useState(null);
+    const [hasMore, setHasMore] = useState(false);
+    const [loading, setLoading] = useState(false);
 
-    const loadGear = React.useCallback(async () => {
+    const loadInitial = React.useCallback(async () => {
         if (!activeBand) return;
-        const data = await getGear(activeBand.id);
-        setGear(data);
+        setLoading(true);
+        try {
+            const { data, lastVisible: lastDoc } = await getGearPaginated(activeBand.id, 15, null);
+            setGear(data);
+            setLastVisible(lastDoc);
+            setHasMore(data.length === 15);
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setLoading(false);
+        }
     }, [activeBand]);
 
+    const loadMore = async () => {
+        if (!activeBand || loading || !hasMore) return;
+        setLoading(true);
+        try {
+            const { data, lastVisible: lastDoc } = await getGearPaginated(activeBand.id, 15, lastVisible);
+            setGear(prev => [...prev, ...data]);
+            setLastVisible(lastDoc);
+            setHasMore(data.length === 15);
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        if (activeBand) loadGear();
-    }, [activeBand, loadGear]);
+        if (activeBand) loadInitial();
+    }, [activeBand, loadInitial]);
 
     // Warn before leaving if form has unsaved changes
     useEffect(() => {
@@ -48,13 +74,13 @@ const Inventory = () => {
 
         setFormData({ name: '', category: 'Instrumento', owner: '', condition: 'Bueno', notes: '' });
         setShowForm(false);
-        loadGear();
+        loadInitial();
     };
 
     const handleDelete = async (id) => {
         if (window.confirm('¿Eliminar este equipo del inventario?')) {
             await deleteGear(activeBand.id, id);
-            loadGear();
+            loadInitial();
         }
     };
 
@@ -141,39 +167,55 @@ const Inventory = () => {
                 />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
-                {filteredGear.map(item => (
-                    <div key={item.id} className="glass" style={{ padding: '1.5rem', position: 'relative' }}>
-                        <div style={{ position: 'absolute', top: '1rem', right: '1rem', display: 'flex', gap: '0.5rem' }}>
-                            <button onClick={() => startEdit(item)} style={{ background: 'rgba(139, 92, 246, 0.1)', color: 'var(--accent-primary)', padding: '0.4rem' }}>
-                                <Edit2 size={16} />
-                            </button>
-                            <button onClick={() => handleDelete(item.id)} style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', padding: '0.4rem' }}>
-                                <Trash2 size={16} />
-                            </button>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-                            <div style={{ background: 'var(--accent-secondary)', padding: '0.5rem', borderRadius: '10px' }}>
-                                <Package size={20} color="white" />
+            {loading && gear.length === 0 ? (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
+                    {[1, 2, 3, 4, 5, 6].map(i => (
+                        <div key={i} className="glass skeleton" style={{ padding: '1.5rem', height: '140px' }} />
+                    ))}
+                </div>
+            ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
+                    {filteredGear.map(item => (
+                        <div key={item.id} className="glass" style={{ padding: '1.5rem', position: 'relative' }}>
+                            <div style={{ position: 'absolute', top: '1rem', right: '1rem', display: 'flex', gap: '0.5rem' }}>
+                                <button onClick={() => startEdit(item)} style={{ background: 'rgba(139, 92, 246, 0.1)', color: 'var(--accent-primary)', padding: '0.4rem' }}>
+                                    <Edit2 size={16} />
+                                </button>
+                                <button onClick={() => handleDelete(item.id)} style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', padding: '0.4rem' }}>
+                                    <Trash2 size={16} />
+                                </button>
                             </div>
-                            <div>
-                                <h3 style={{ margin: 0, fontSize: '1.1rem' }}>{item.name}</h3>
-                                <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{item.category}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+                                <div style={{ background: 'var(--accent-secondary)', padding: '0.5rem', borderRadius: '10px' }}>
+                                    <Package size={20} color="white" />
+                                </div>
+                                <div>
+                                    <h3 style={{ margin: 0, fontSize: '1.1rem' }}>{item.name}</h3>
+                                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{item.category}</span>
+                                </div>
                             </div>
-                        </div>
 
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.9rem' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-secondary)' }}>
-                                <User size={14} /> <span>Resp: {item.owner || 'Banda'}</span>
-                            </div>
-                            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', borderRadius: '8px', marginTop: '0.5rem' }}>
-                                <span style={{ fontSize: '0.8rem', opacity: 0.7, display: 'block', marginBottom: '0.25rem' }}>Notas Técnicas:</span>
-                                {item.notes || 'Sin notas.'}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.9rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-secondary)' }}>
+                                    <User size={14} /> <span>Resp: {item.owner || 'Banda'}</span>
+                                </div>
+                                <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', borderRadius: '8px', marginTop: '0.5rem' }}>
+                                    <span style={{ fontSize: '0.8rem', opacity: 0.7, display: 'block', marginBottom: '0.25rem' }}>Notas Técnicas:</span>
+                                    {item.notes || 'Sin notas.'}
+                                </div>
                             </div>
                         </div>
-                    </div>
-                ))}
-            </div>
+                    ))}
+                </div>
+            )}
+
+            {hasMore && !search && (
+                <div style={{ textAlign: 'center', marginTop: '2rem' }}>
+                    <button onClick={loadMore} disabled={loading} style={{ background: 'var(--accent-primary)', color: 'white', padding: '0.75rem 2rem', border: 'none', borderRadius: '30px', cursor: 'pointer' }}>
+                        {loading ? 'Cargando...' : 'Cargar más equipo'}
+                    </button>
+                </div>
+            )}
         </div>
     );
 };

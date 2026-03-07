@@ -36,11 +36,20 @@ export const getSystemSettings = async () => {
 };
 
 export const subscribeToSettings = (callback) => {
-    return onSnapshot(doc(db, "system_settings", "config"), (doc) => {
-        if (doc.exists()) {
-            callback(doc.data());
+    return onSnapshot(
+        doc(db, "system_settings", "config"),
+        (doc) => {
+            if (doc.exists()) {
+                callback(doc.data());
+            } else {
+                callback({ maintenanceMode: false });
+            }
+        },
+        (error) => {
+            console.warn("Subscripción a settings denegada o fallida, usando defaults:", error.message);
+            callback({ maintenanceMode: false });
         }
-    });
+    );
 };
 
 export const toggleFeatureFlag = async (flagName, newValue) => {

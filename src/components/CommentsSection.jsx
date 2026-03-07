@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { commentService } from '../../services/commentService';
-import { useAuth } from '../../hooks/useAuth';
+import { commentService } from '../services/commentService';
+import { useAuth } from '../hooks/useAuth';
 import { MessageSquare, Send, Trash2, User } from 'lucide-react';
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';

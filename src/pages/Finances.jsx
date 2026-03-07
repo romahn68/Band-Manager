@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../hooks/useApp';
-import { getFinances, addFinance, deleteFinance } from '../services/firestoreService';
-import { Plus, Trash2, DollarSign, ArrowUpCircle, ArrowDownCircle, Search, Calendar, Filter } from 'lucide-react';
+import { getFinancesPaginated, addFinance, deleteFinance } from '../services/firestoreService';
+import { Plus, Trash2, DollarSign, ArrowUpCircle, ArrowDownCircle, Search, Calendar, Filter, Camera } from 'lucide-react';
+import { scanText } from '../services/ocrService';
+import { Capacitor } from '@capacitor/core';
 
 const Finances = () => {
     const { activeBand } = useApp();
@@ -10,6 +12,8 @@ const Finances = () => {
     const [loading, setLoading] = useState(false);
     const [search, setSearch] = useState('');
     const [filter, setFilter] = useState('all'); // all, income, expense
+    const [lastVisible, setLastVisible] = useState(null);
+    const [hasMore, setHasMore] = useState(false);
 
     const [formData, setFormData] = useState({
         concepto: '',
@@ -20,12 +24,15 @@ const Finances = () => {
         notas: ''
     });
 
-    const loadFinances = React.useCallback(async () => {
+    const loadInitial = React.useCallback(async () => {
         if (!activeBand) return;
         setLoading(true);
         try {
-            const data = await getFinances(activeBand.id);
-            setTransactions(data.sort((a, b) => b.fecha.localeCompare(a.fecha)));
+            // Paginated to 50 items so balance still works reasonably well over recent activity
+            const { data, lastVisible: lastDoc } = await getFinancesPaginated(activeBand.id, 50, null);
+            setTransactions(data);
+            setLastVisible(lastDoc);
+            setHasMore(data.length === 50);
         } catch (error) {
             console.error("Error loading finances:", error);
         } finally {
@@ -33,9 +40,24 @@ const Finances = () => {
         }
     }, [activeBand]);
 
+    const loadMore = async () => {
+        if (!activeBand || loading || !hasMore) return;
+        setLoading(true);
+        try {
+            const { data, lastVisible: lastDoc } = await getFinancesPaginated(activeBand.id, 50, lastVisible);
+            setTransactions(prev => [...prev, ...data]);
+            setLastVisible(lastDoc);
+            setHasMore(data.length === 50);
+        } catch (error) {
+            console.error("Error loading more finances:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        if (activeBand) loadFinances();
-    }, [activeBand, loadFinances]);
+        if (activeBand) loadInitial();
+    }, [activeBand, loadInitial]);
 
     // Warn before leaving if form has unsaved changes
     useEffect(() => {
@@ -70,7 +92,7 @@ const Finances = () => {
                 notas: ''
             });
             setShowForm(false);
-            loadFinances();
+            loadInitial();
         } catch (error) {
             console.error("Error adding finance:", error);
             alert("Error al guardar la transacción.");
@@ -83,7 +105,7 @@ const Finances = () => {
         if (window.confirm('¿Eliminar esta transacción?')) {
             try {
                 await deleteFinance(activeBand.id, id);
-                loadFinances();
+                loadInitial();
             } catch (error) {
                 console.error("Error deleting finance:", error);
             }
@@ -145,6 +167,53 @@ const Finances = () => {
 
             {showForm && (
                 <form className="glass" onSubmit={handleSubmit} style={{ padding: '2rem', marginBottom: '2rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                        <h3 style={{ margin: 0, color: 'var(--accent-secondary)' }}>Detalle del Movimiento</h3>
+                        {Capacitor.isNativePlatform() && (
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    try {
+                                        setLoading(true);
+                                        const text = await scanText();
+                                        if (text) {
+                                            // Extract numbers (basic regex for total/monto)
+                                            const matches = text.match(/[\d,]+\.\d{2}/g);
+                                            let detectedMonto = formData.monto;
+                                            if (matches && matches.length > 0) {
+                                                // Take the largest number from the ticket assuming it's the Total
+                                                const maxNum = Math.max(...matches.map(m => parseFloat(m.replace(',', ''))));
+                                                if (maxNum > 0) detectedMonto = maxNum.toString();
+                                            }
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                monto: detectedMonto,
+                                                notas: `Ticket Escaneado:\n${text.substring(0, 100)}...`
+                                            }));
+                                            alert("Ticket escaneado. Revisa el monto detectado.");
+                                        }
+                                    } catch (e) {
+                                        console.error(e);
+                                        alert("No se pudo escanear el ticket.");
+                                    } finally {
+                                        setLoading(false);
+                                    }
+                                }}
+                                style={{
+                                    padding: '0.4rem 0.8rem',
+                                    background: 'rgba(16, 185, 129, 0.2)',
+                                    color: '#10b981',
+                                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.4rem',
+                                    borderRadius: '6px'
+                                }}
+                            >
+                                <Camera size={16} /> Autocompletar con IA
+                            </button>
+                        )}
+                    </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
                         <div>
                             <label style={{ display: 'block', marginBottom: '0.5rem' }}>Concepto *</label>
@@ -296,6 +365,14 @@ const Finances = () => {
                         </div>
                     )}
                 </div>
+
+                {hasMore && !search && (
+                    <div style={{ textAlign: 'center', marginTop: '2rem' }}>
+                        <button onClick={loadMore} disabled={loading} style={{ background: 'var(--accent-primary)', color: 'white', padding: '0.75rem 2rem', border: 'none', borderRadius: '30px', cursor: 'pointer' }}>
+                            {loading ? 'Cargando...' : 'Cargar más movimientos'}
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );

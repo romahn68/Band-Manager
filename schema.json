@@ -1,0 +1,105 @@
+{
+    "users": {
+        "{uid}": {
+            "uid": "string",
+            "email": "string",
+            "nombre": "string",
+            "photoURL": "string (optional)",
+            "createdAt": "timestamp"
+        }
+    },
+    "bands": {
+        "{bandId}": {
+            "id": "string",
+            "nombre": "string",
+            "ownerId": "string (uid)",
+            "inviteCode": "string",
+            "customId": "string (short readable ID)",
+            "createdAt": "timestamp",
+            "members": [
+                "string (uid)"
+            ],
+            "admins": [
+                "string (uid)"
+            ]
+        },
+        "subcollections": {
+            "musicians": {
+                "{uid}": {
+                    "uid": "string",
+                    "role": "string",
+                    "instrument": {
+                        "id": "string",
+                        "nombre": "string"
+                    },
+                    "joinedAt": "timestamp",
+                    "bandId": "string"
+                }
+            },
+            "songs": {
+                "{songId}": {
+                    "id": "string",
+                    "customId": "string (optional)",
+                    "titulo": "string",
+                    "duracion": "number (seconds)",
+                    "tono": "string",
+                    "createdAt": "timestamp",
+                    "updatedAt": "timestamp",
+                    "bandId": "string"
+                }
+            },
+            "rehearsals": {
+                "{rehearsalId}": {
+                    "id": "string",
+                    "customId": "string",
+                    "fecha": "date string (YYYY-MM-DD)",
+                    "notas": "string",
+                    "asistentes": [
+                        "string (uid)"
+                    ],
+                    "createdAt": "timestamp",
+                    "bandId": "string"
+                }
+            },
+            "finances": {
+                "{financeId}": {
+                    "id": "string",
+                    "customId": "string",
+                    "tipo": "string (ingreso/egreso)",
+                    "monto": "number",
+                    "fecha": "date string",
+                    "descripcion": "string",
+                    "registradoPor": "string (uid)",
+                    "createdAt": "timestamp",
+                    "bandId": "string"
+                }
+            },
+            "gear": {
+                "{gearId}": {
+                    "id": "string",
+                    "customId": "string",
+                    "name": "string",
+                    "tipo": "string",
+                    "estado": "string",
+                    "propietario": "string (uid or band)",
+                    "createdAt": "timestamp",
+                    "bandId": "string"
+                }
+            },
+            "gigs": {
+                "{gigId}": {
+                    "id": "string",
+                    "customId": "string",
+                    "fecha": "date string",
+                    "lugar": "string",
+                    "pago": "number",
+                    "setlist": [
+                        "string (songId)"
+                    ],
+                    "createdAt": "timestamp",
+                    "bandId": "string"
+                }
+            }
+        }
+    }
+}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../hooks/useApp';
-import { getMusicians, addMusician, deleteMusician, inviteUserToBand } from '../services/firestoreService';
+import { getMusiciansPaginated, addMusician, deleteMusician, inviteUserToBand } from '../services/firestoreService';
 import { generateIdCode } from '../utils/codeGenerator';
 import { sendInvitationEmail } from '../services/emailService';
 import { Users, Mail, Copy, Plus, Trash2, Loader2 } from 'lucide-react';
@@ -13,18 +13,42 @@ const Musicians = () => {
     const [inviting, setInviting] = useState(false);
     const [musicians, setMusicians] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [lastVisible, setLastVisible] = useState(null);
+    const [hasMore, setHasMore] = useState(false);
 
-    const loadMusicians = React.useCallback(async () => {
+    const loadInitial = React.useCallback(async () => {
         if (!activeBand) return;
         setLoading(true);
-        const data = await getMusicians(activeBand.id);
-        setMusicians(data);
-        setLoading(false);
+        try {
+            const { data, lastVisible: lastDoc } = await getMusiciansPaginated(activeBand.id, 15, null);
+            setMusicians(data);
+            setLastVisible(lastDoc);
+            setHasMore(data.length === 15);
+        } catch (error) {
+            console.error("Error loading musicians:", error);
+        } finally {
+            setLoading(false);
+        }
     }, [activeBand]);
 
+    const loadMore = async () => {
+        if (!activeBand || loading || !hasMore) return;
+        setLoading(true);
+        try {
+            const { data, lastVisible: lastDoc } = await getMusiciansPaginated(activeBand.id, 15, lastVisible);
+            setMusicians(prev => [...prev, ...data]);
+            setLastVisible(lastDoc);
+            setHasMore(data.length === 15);
+        } catch (error) {
+            console.error("Error loading more musicians:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        loadMusicians();
-    }, [activeBand, loadMusicians]);
+        loadInitial();
+    }, [activeBand, loadInitial]);
 
     const handleAddMusician = async (e) => {
         e.preventDefault();
@@ -43,7 +67,7 @@ const Musicians = () => {
         try {
             await addMusician(activeBand.id, newMusician);
             form.reset();
-            loadMusicians();
+            loadInitial();
             alert("Músico agregado correctamente");
         } catch (error) {
             console.error("Error adding musician:", error);
@@ -54,7 +78,7 @@ const Musicians = () => {
     const handleDelete = async (id) => {
         if (window.confirm('¿Eliminar a este músico?')) {
             await deleteMusician(activeBand.id, id);
-            loadMusicians();
+            loadInitial();
         }
     };
 
@@ -74,7 +98,7 @@ const Musicians = () => {
 
             await inviteUserToBand(activeBand.id, inviteEmail);
             setInviteEmail('');
-            loadMusicians();
+            loadInitial();
         } catch (error) {
             console.error("Error in invitation flow:", error);
             alert("Hubo un problema al procesar la invitación.");
@@ -210,6 +234,14 @@ const Musicians = () => {
                     </div>
                 )}
             </div>
+
+            {hasMore && (
+                <div style={{ textAlign: 'center', marginTop: '1.5rem', marginBottom: '2rem' }}>
+                    <button onClick={loadMore} disabled={loading} style={{ background: 'var(--accent-primary)', color: 'white', padding: '0.75rem 2rem', border: 'none', borderRadius: '30px', cursor: 'pointer' }}>
+                        {loading ? 'Cargando...' : 'Cargar más músicos'}
+                    </button>
+                </div>
+            )}
         </div>
     );
 };
