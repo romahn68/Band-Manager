@@ -1,7 +1,7 @@
 import { db } from '../firebase';
-import { collection, query, where, getDocs, addDoc, doc, updateDoc, deleteDoc, getDoc, orderBy, onSnapshot, serverTimestamp, writeBatch, limit, limitToLast, startAfter, setDoc, getCountFromServer } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, doc, updateDoc, deleteDoc, getDoc, orderBy, onSnapshot, serverTimestamp, writeBatch, limit, limitToLast, startAfter, setDoc, getCountFromServer, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { generateIdCode } from '../utils/codeGenerator';
-import { ENTITY_TYPES } from '../utils/constants';
+import { ENTITY_TYPES, ROLES } from '../utils/constants';
 // --- BANDS ---
 export const getBand = async (bandId) => {
     const docRef = doc(db, "bands", bandId);
@@ -22,12 +22,11 @@ export const getBandsByUser = async (uid) => {
 
 export const createBand = async (user, bandName = "Mi Nueva Banda") => {
     const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const bandRef = doc(collection(db, "bands")); // Generate ID first
+    const bandRef = doc(collection(db, "bands")); 
     const memberRef = doc(db, "bands", bandRef.id, "musicians", user.uid);
     const now = new Date().toISOString();
 
     const bandData = {
-        id: bandRef.id,
         nombre: bandName,
         ownerId: user.uid,
         inviteCode: inviteCode,
@@ -39,7 +38,7 @@ export const createBand = async (user, bandName = "Mi Nueva Banda") => {
 
     const memberData = {
         uid: user.uid,
-        role: 'Admin',
+        role: ROLES.ADMIN,
         customId: generateIdCode('member'),
         instrument: {
             id: generateIdCode('instrument'),
@@ -56,7 +55,7 @@ export const createBand = async (user, bandName = "Mi Nueva Banda") => {
 
     await batch.commit();
 
-    return bandData;
+    return { id: bandRef.id, ...bandData };
 };
 
 export const updateBand = async (bandId, data) => {
@@ -76,7 +75,7 @@ export const getBandByInviteCode = async (inviteCode) => {
     return null;
 };
 
-export const joinBand = async (bandId, user, role = 'Miembro') => {
+export const joinBand = async (bandId, user) => {
     const bandRef = doc(db, "bands", bandId);
     const bandSnap = await getDoc(bandRef);
     if (!bandSnap.exists()) throw new Error("La banda no existe");
@@ -84,18 +83,24 @@ export const joinBand = async (bandId, user, role = 'Miembro') => {
     const bandData = bandSnap.data();
     if (bandData.members.includes(user.uid)) return;
 
+    // Buscar invitación por correo
+    const inviteRef = doc(db, "bands", bandId, "invites", user.email.toLowerCase());
+    const inviteSnap = await getDoc(inviteRef);
+    let inviteData = inviteSnap.exists() ? inviteSnap.data() : null;
+
     const memberRef = doc(db, "bands", bandId, "musicians", user.uid);
     const now = new Date().toISOString();
 
     const batch = writeBatch(db);
 
     batch.update(bandRef, {
-        members: [...bandData.members, user.uid]
+        members: arrayUnion(user.uid)
     });
 
-    batch.set(memberRef, {
+    const memberData = {
         uid: user.uid,
-        role: role,
+        role: inviteData?.permisos || ROLES.VISOR, // Priorizar permisos de la invitación
+        profile: inviteData?.perfil || 'Musico',    // Priorizar perfil de la invitación
         customId: generateIdCode('member'),
         instrument: {
             id: generateIdCode('instrument'),
@@ -104,9 +109,50 @@ export const joinBand = async (bandId, user, role = 'Miembro') => {
         joinedAt: now,
         updatedAt: now,
         bandId: bandId
-    });
+    };
+
+    batch.set(memberRef, memberData);
+
+    // Si hay invitación, consumirla
+    if (inviteSnap.exists()) {
+        batch.delete(inviteRef);
+        
+        // Inicializar perfil global si no existe
+        const userRef = doc(db, "users", user.uid);
+        const userSnap = await getDoc(userRef);
+        if (!userSnap.exists()) {
+            batch.set(userRef, {
+                fullName: `${inviteData.nombre} ${inviteData.apellido}`.trim() || user.displayName,
+                email: user.email,
+                uid: user.uid,
+                roleInBand: inviteData.perfil?.toLowerCase() || 'musico',
+                createdAt: now
+            });
+        }
+    }
 
     await batch.commit();
+};
+
+export const createInvite = async (bandId, inviteData) => {
+    // Standardized: Use 'invitations' as the unified subcollection and email as the doc ID
+    // (Senior Audit Finding #4)
+    const emailKey = inviteData.correo.toLowerCase();
+    const inviteRef = doc(db, "bands", bandId, "invitations", emailKey);
+    await setDoc(inviteRef, {
+        ...inviteData,
+        bandId,
+        createdAt: new Date().toISOString(),
+        status: 'pending' // Added status for consistency
+    });
+};
+
+export const getInviteByEmail = async (bandId, email) => {
+    const emailKey = email.toLowerCase();
+    const inviteRef = doc(db, "bands", bandId, "invitations", emailKey);
+    const inviteSnap = await getDoc(inviteRef);
+    if (inviteSnap.exists()) return inviteSnap.data();
+    return null;
 };
 
 // --- CHAT / MESSAGES ---
@@ -150,24 +196,25 @@ const getCollection = async (coll, bandId, limitCount = 100) => {
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 };
 
-const getCollectionPaginated = async (coll, bandId, pageSize = 15, lastVisible = null, sortField = 'createdAt', sortDir = 'desc') => {
-    if (!bandId) return { data: [], lastVisible: null };
-
+// --- PAGINATION HELPER ---
+export const getPaginatedCollection = async (coll, bandId, pageSize = 20, lastDoc = null) => {
+    if (!bandId) return { data: [], lastDoc: null };
+    
     let q = query(
         collection(db, "bands", bandId, coll),
-        orderBy(sortField, sortDir),
+        orderBy("createdAt", "desc"),
         limit(pageSize)
     );
 
-    if (lastVisible) {
-        q = query(q, startAfter(lastVisible));
+    if (lastDoc) {
+        q = query(q, startAfter(lastDoc));
     }
 
-    const documentSnapshots = await getDocs(q);
-    const data = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    const lastVisibleDoc = documentSnapshots.docs[documentSnapshots.docs.length - 1];
+    const querySnapshot = await getDocs(q);
+    const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const lastVisible = querySnapshot.docs[querySnapshot.docs.length - 1] || null;
 
-    return { data, lastVisible: lastVisibleDoc };
+    return { data, lastDoc: lastVisible };
 };
 
 const addItem = async (coll, bandId, item) => {
@@ -178,11 +225,11 @@ const addItem = async (coll, bandId, item) => {
 
     const entityType = ENTITY_TYPES[coll] || 'other';
 
-    // Generate ID beforehand for structured storage
+    // Generate reference with auto-ID
     const docRef = doc(collection(db, "bands", bandId, coll));
     const now = new Date().toISOString();
 
-    // Pro-structuring: Ensure core properties exist
+    // Pro-structuring: Ensure core properties exist, avoiding 'id' inside the doc to prevent redundancy
     const structuredItem = {
         ...item,
         customId: item.customId || generateIdCode(entityType),
@@ -201,13 +248,23 @@ const addItem = async (coll, bandId, item) => {
 };
 
 const updateItem = async (coll, bandId, itemId, data) => {
-    const itemRef = doc(db, "bands", bandId, coll, itemId);
-    await updateDoc(itemRef, data);
+    try {
+        const itemRef = doc(db, "bands", bandId, coll, itemId);
+        await updateDoc(itemRef, data);
+    } catch (error) {
+        console.error(`Error updating item in ${coll}:`, error);
+        throw new Error(`No se pudo actualizar el registro en ${coll}.`);
+    }
 };
 
 const deleteItem = async (coll, bandId, itemId) => {
-    const itemRef = doc(db, "bands", bandId, coll, itemId);
-    await deleteDoc(itemRef);
+    try {
+        const itemRef = doc(db, "bands", bandId, coll, itemId);
+        await deleteDoc(itemRef);
+    } catch (error) {
+        console.error(`Error deleting item in ${coll}:`, error);
+        throw new Error(`No se pudo eliminar el registro de ${coll}.`);
+    }
 };
 
 // --- BULK OPERATIONS ---
@@ -240,81 +297,116 @@ export const getMusiciansCount = (bandId) => getCollectionCount('musicians', ban
 export const getRehearsalsCount = (bandId) => getCollectionCount('rehearsals', bandId);
 export const getGigsCount = (bandId) => getCollectionCount('gigs', bandId);
 
-export const getSongs = (bandId) => getCollection('songs', bandId);
+export const getSongs = (bandId, pageSize = 50) => getCollection('songs', bandId, pageSize);
 
-export const getSongsPaginated = async (bandId, pageSize = 15, lastVisible = null) => {
-    if (!bandId) return { data: [], lastVisible: null };
-
-    let q = query(
-        collection(db, "bands", bandId, "songs"),
-        orderBy("titulo", "asc"),
-        limit(pageSize)
-    );
-
-    if (lastVisible) {
-        q = query(q, startAfter(lastVisible));
-    }
-
-    const documentSnapshots = await getDocs(q);
-    const data = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    // Save reference to last doc
-    const lastVisibleDoc = documentSnapshots.docs[documentSnapshots.docs.length - 1];
-
-    return { data, lastVisible: lastVisibleDoc };
-};
+export const getSongsPaginated = (bandId, pageSize = 15, lastVisible = null) => 
+    getPaginatedCollection('songs', bandId, pageSize, lastVisible);
 
 export const addSong = (bandId, song) => addItem('songs', bandId, song);
 export const updateSong = (bandId, id, data) => updateItem('songs', bandId, id, data);
 export const deleteSong = (bandId, id) => deleteItem('songs', bandId, id);
 export const bulkAddSongs = (bandId, songs) => bulkAddItems('songs', bandId, songs);
 
-export const getMusicians = async (bandId) => {
-    const musicians = await getCollection('musicians', bandId);
-    return Promise.all(musicians.map(async (m) => {
-        if (m.uid && !m.nombre) {
-            const userSnap = await getDoc(doc(db, "users", m.uid));
-            if (userSnap.exists()) {
-                const ud = userSnap.data();
-                return { ...m, nombre: ud.nombre, email: ud.email, photoURL: ud.photoURL };
+export const getMusicians = async (bandId, pageSize = 50) => {
+    try {
+        const musicians = await getCollection('musicians', bandId, pageSize);
+        return Promise.all(musicians.map(async (m) => {
+            if (m.uid) {
+                try {
+                    const userSnap = await getDoc(doc(db, "users", m.uid));
+                    if (userSnap.exists()) {
+                        const ud = userSnap.data();
+                        return { 
+                            ...m, 
+                            nombre: ud.nombre || ud.fullName || m.nombre || 'Miembro', 
+                            email: ud.email || m.email, 
+                            photoURL: ud.photoURL || m.photoURL 
+                        };
+                    }
+                } catch (userErr) {
+                    console.error(`Error enrichment for musician ${m.uid}:`, userErr);
+                }
             }
-        }
-        return m;
-    }));
+            return m;
+        }));
+    } catch (error) {
+        console.error("Error in getMusicians:", error);
+        throw error;
+    }
 };
 
 export const getMusiciansPaginated = async (bandId, pageSize = 15, lastVisible = null) => {
-    // Ordenar por joinedAt para no excluir documentos sin nombre
-    const result = await getCollectionPaginated('musicians', bandId, pageSize, lastVisible, 'joinedAt', 'asc');
-    const enrichedData = await Promise.all(result.data.map(async (m) => {
-        if (m.uid && !m.nombre) {
-            const userSnap = await getDoc(doc(db, "users", m.uid));
-            if (userSnap.exists()) {
-                const ud = userSnap.data();
-                return { ...m, nombre: ud.nombre, email: ud.email, photoURL: ud.photoURL };
+    try {
+        const result = await getPaginatedCollection('musicians', bandId, pageSize, lastVisible);
+        const enrichedData = await Promise.all(result.data.map(async (m) => {
+            if (m.uid) {
+                try {
+                    const userSnap = await getDoc(doc(db, "users", m.uid));
+                    if (userSnap.exists()) {
+                        const ud = userSnap.data();
+                        return { 
+                            ...m, 
+                            nombre: ud.nombre || ud.fullName || m.nombre || 'Miembro', 
+                            email: ud.email || m.email, 
+                            photoURL: ud.photoURL || m.photoURL 
+                        };
+                    }
+                } catch (userErr) {
+                    console.error(`Error enrichment in paginated view for ${m.uid}:`, userErr);
+                }
             }
-        }
-        return m;
-    }));
-    return { data: enrichedData, lastVisible: result.lastVisible };
+            return m;
+        }));
+        return { data: enrichedData, lastVisible: result.lastDoc };
+    } catch (error) {
+        console.error("Error in getMusiciansPaginated:", error);
+        throw error;
+    }
 };
+
 export const addMusician = (bandId, musician) => addItem('musicians', bandId, musician);
 export const updateMusician = (bandId, id, data) => updateItem('musicians', bandId, id, data);
 export const deleteMusician = (bandId, id) => deleteItem('musicians', bandId, id);
 
-// Aliases for compatibility
+export const updateMemberRole = async (bandId, memberUid, newRole) => {
+    try {
+        const batch = writeBatch(db);
+        const bandRef = doc(db, "bands", bandId);
+        const memberRef = doc(db, "bands", bandId, "musicians", memberUid);
+
+        batch.update(memberRef, { role: newRole });
+
+        if (newRole === ROLES.ADMIN) {
+            batch.update(bandRef, {
+                admins: arrayUnion(memberUid)
+            });
+        } else {
+            batch.update(bandRef, {
+                admins: arrayRemove(memberUid)
+            });
+        }
+
+        await batch.commit();
+    } catch (error) {
+        console.error("Error updating member role:", error);
+        throw new Error("No se pudo actualizar el permiso del usuario.");
+    }
+};
+
 export const getMembers = getMusicians;
 export const addMember = addMusician;
 export const updateMember = updateMusician;
 export const deleteMember = deleteMusician;
 
-export const getRehearsals = (bandId) => getCollection('rehearsals', bandId);
+export const getRehearsals = (bandId, pageSize = 50) => getCollection('rehearsals', bandId, pageSize);
 export const getRehearsalsPaginated = (bandId, pageSize = 15, lastVisible = null) =>
-    getCollectionPaginated('rehearsals', bandId, pageSize, lastVisible, 'fecha', 'desc');
+    getPaginatedCollection('rehearsals', bandId, pageSize, lastVisible);
+
 export const addRehearsal = (bandId, log) => addItem('rehearsals', bandId, log);
 export const updateRehearsal = (bandId, id, data) => updateItem('rehearsals', bandId, id, data);
 export const deleteRehearsal = (bandId, id) => deleteItem('rehearsals', bandId, id);
 
-export const getGigs = (bandId) => getCollection('gigs', bandId);
+export const getGigs = (bandId, pageSize = 50) => getCollection('gigs', bandId, pageSize);
 export const getUpcomingGigs = async (bandId, limitCount = 1) => {
     if (!bandId) return [];
     const today = new Date().toISOString().split('T')[0];
@@ -328,53 +420,31 @@ export const getUpcomingGigs = async (bandId, limitCount = 1) => {
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 };
 
-export const getGigsPaginated = async (bandId, pageSize = 10, lastVisible = null) => {
-    if (!bandId) return { data: [], lastVisible: null };
-
-    let q = query(
-        collection(db, "bands", bandId, "gigs"),
-        orderBy("fecha", "desc"), // Show newest/future first usually, but check current usage
-        limit(pageSize)
-    );
-
-    if (lastVisible) {
-        q = query(q, startAfter(lastVisible));
-    }
-
-    const documentSnapshots = await getDocs(q);
-    const data = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    const lastVisibleDoc = documentSnapshots.docs[documentSnapshots.docs.length - 1];
-
-    return { data, lastVisible: lastVisibleDoc };
-};
+export const getGigsPaginated = (bandId, pageSize = 10, lastVisible = null) =>
+    getPaginatedCollection('gigs', bandId, pageSize, lastVisible);
 
 export const addGig = (bandId, gig) => addItem('gigs', bandId, gig);
 export const updateGig = (bandId, id, data) => updateItem('gigs', bandId, id, data);
 export const deleteGig = (bandId, id) => deleteItem('gigs', bandId, id);
 
-export const getGear = (bandId) => getCollection('gear', bandId);
+export const getGear = (bandId, pageSize = 50) => getCollection('gear', bandId, pageSize);
 export const getGearPaginated = (bandId, pageSize = 15, lastVisible = null) =>
-    getCollectionPaginated('gear', bandId, pageSize, lastVisible, 'name', 'asc');
+    getPaginatedCollection('gear', bandId, pageSize, lastVisible);
+
 export const addGear = (bandId, item) => addItem('gear', bandId, item);
 export const updateGear = (bandId, id, data) => updateItem('gear', bandId, id, data);
 export const deleteGear = (bandId, id) => deleteItem('gear', bandId, id);
 export const bulkAddGear = (bandId, gear) => bulkAddItems('gear', bandId, gear);
 
-export const getFinances = (bandId) => getCollection('finances', bandId);
+export const getFinances = (bandId, pageSize = 50) => getCollection('finances', bandId, pageSize);
 export const getFinancesPaginated = (bandId, pageSize = 15, lastVisible = null) =>
-    getCollectionPaginated('finances', bandId, pageSize, lastVisible, 'fecha', 'desc');
+    getPaginatedCollection('finances', bandId, pageSize, lastVisible);
+
 export const addFinance = (bandId, record) => addItem('finances', bandId, record);
 export const updateFinance = (bandId, id, data) => updateItem('finances', bandId, id, data);
 export const deleteFinance = (bandId, id) => deleteItem('finances', bandId, id);
 
-export const inviteUserToBand = async (bandId, email) => {
-    const invRef = collection(db, "bands", bandId, "invitations");
-    await addDoc(invRef, {
-        email: email,
-        invitedAt: serverTimestamp(),
-        status: 'pending'
-    });
-};
+// Consolidated: inviteUserToBand functionality is now handled by createInvite
 
 export const updateUserProfile = async (uid, data) => {
     // Solo actualizamos el maestro de usuario. Ya no se duplica en las subcolecciones.

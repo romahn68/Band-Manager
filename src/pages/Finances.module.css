@@ -1,0 +1,352 @@
+.container {
+    padding: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.title {
+    color: var(--accent-primary);
+    margin: 0;
+    font-size: 2rem;
+    font-weight: 700;
+}
+
+.actionButton {
+    background: var(--accent-primary);
+    color: white;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+/* Stats Cards */
+.statsGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.statCard {
+    padding: 1.5rem;
+}
+
+.statLabel {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.statValue {
+    font-size: 2rem;
+    font-weight: bold;
+}
+
+.statValueLarge {
+    font-size: 1.8rem;
+    font-weight: bold;
+}
+
+/* Form Styles */
+.formGrid {
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+
+.formHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.formTitle {
+    margin: 0;
+    color: var(--accent-secondary);
+}
+
+.ocrButton {
+    padding: 0.4rem 0.8rem;
+    background: rgba(16, 185, 129, 0.2);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.inputRow {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.inputGroup {
+    margin-bottom: 1rem;
+}
+
+.label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.submitButton {
+    background: var(--accent-primary);
+    color: white;
+    width: 100%;
+    font-size: 1.1rem;
+    padding: 1rem;
+    border-radius: 12px;
+    border: none;
+    cursor: pointer;
+    font-weight: 700;
+}
+
+/* New Standard Table Structure */
+.tableContainer {
+    width: 100%;
+    overflow-x: auto;
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(12px);
+    border-radius: 16px;
+    border: 1px solid var(--glass-border);
+    margin-top: 1rem;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+.filterBar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding: 1.5rem;
+    background: rgba(255, 255, 255, 0.02);
+    border-bottom: 1px solid var(--glass-border);
+    align-items: center;
+}
+
+.searchWrapper {
+    flex: 1;
+    min-width: 250px;
+    position: relative;
+}
+
+.searchIcon {
+    position: absolute;
+    left: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-secondary);
+}
+
+.searchInput {
+    padding-left: 3rem;
+    width: 100%;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    color: white;
+    height: 40px;
+}
+
+.filterGroup {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.filterBtn {
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: rgba(255, 255, 255, 0.05);
+    color: white;
+    font-weight: 500;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+}
+
+.th {
+    padding: 1.2rem 1rem;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--accent-primary);
+    border-bottom: 1px solid var(--glass-border);
+    font-weight: 700;
+}
+
+.td {
+    padding: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: 0.95rem;
+    vertical-align: middle;
+}
+
+.tr:hover td {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.tdConcepto {
+    font-weight: 600;
+}
+
+.tdNotas {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+}
+
+.categoryBadge {
+    padding: 0.3rem 0.75rem;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: rgba(139, 92, 246, 0.1);
+    color: var(--accent-primary);
+    border: 1px solid rgba(139, 92, 246, 0.2);
+}
+
+.tdAmount {
+    text-align: right;
+    font-weight: 700;
+    font-size: 1.1rem;
+}
+
+.tdActions {
+    text-align: right;
+}
+
+.inlineInput {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 0.4rem 0.6rem;
+    color: white;
+    width: 100%;
+    font-family: inherit;
+    font-size: inherit;
+    transition: all 0.2s;
+    text-align: inherit;
+}
+
+.inlineInput:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    background: rgba(0, 0, 0, 0.4);
+}
+
+.inlineSelect {
+    background: rgba(139, 92, 246, 0.1);
+    border: 1px solid rgba(139, 92, 246, 0.2);
+    color: var(--accent-primary);
+    padding: 0.3rem 0.6rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    font-weight: 500;
+    width: 100%;
+    transition: all 0.2s;
+}
+
+.deleteBtn {
+    background: none;
+    color: #ef4444;
+    border: none;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 8px;
+    transition: background 0.2s;
+}
+
+.deleteBtn:hover {
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.emptyState {
+    text-align: center;
+    padding: 4rem;
+    color: var(--text-secondary);
+}
+
+.loadMoreContainer {
+    text-align: center;
+    padding: 2rem;
+}
+
+.loadMoreBtn {
+    background: var(--accent-primary);
+    color: white;
+    padding: 0.75rem 2.5rem;
+    border: none;
+    border-radius: 30px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: transform 0.2s;
+}
+
+.loadMoreBtn:hover {
+    transform: scale(1.05);
+}
+
+@media (max-width: 768px) {
+    .table thead {
+        display: none;
+    }
+
+    .table td {
+        display: block;
+        text-align: right;
+        padding-left: 50%;
+        position: relative;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .table td::before {
+        content: attr(data-label);
+        position: absolute;
+        left: 1rem;
+        width: 45%;
+        text-align: left;
+        font-weight: 700;
+        color: var(--accent-primary);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+    }
+
+    .tdAmount {
+        font-size: 1.2rem;
+    }
+
+    .inlineInput {
+        text-align: right;
+    }
+}

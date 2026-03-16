@@ -8,7 +8,8 @@ import {
     onSnapshot,
     serverTimestamp,
     deleteDoc,
-    doc
+    doc,
+    getDoc
 } from "firebase/firestore";
 
 /**
@@ -22,27 +23,33 @@ export const commentService = {
     async addComment(bandId, parentId, parentType, author, text) {
         if (!text.trim()) throw new Error("El comentario no puede estar vacío");
 
-        const commentsRef = collection(db, "bands", bandId, "comments");
-        return await addDoc(commentsRef, {
-            parentId,
-            parentType,
-            author: {
-                uid: author.uid,
-                displayName: author.displayName || 'Músico',
-                photoURL: author.photoURL || null
-            },
-            text: text.trim(),
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-        });
+        try {
+            const commentsRef = collection(db, "bands", bandId, "comments");
+            return await addDoc(commentsRef, {
+                parentId,
+                parentType,
+                authorUid: author.uid, // Solo guardamos la referencia al UID
+                text: text.trim(),
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+            });
+        } catch (error) {
+            console.error("Error adding comment:", error);
+            throw new Error("No se pudo guardar el comentario. Verifica tu conexión.");
+        }
     },
 
     /**
      * Elimina un comentario
      */
     async deleteComment(bandId, commentId) {
-        const commentRef = doc(db, "bands", bandId, "comments", commentId);
-        return await deleteDoc(commentRef);
+        try {
+            const commentRef = doc(db, "bands", bandId, "comments", commentId);
+            return await deleteDoc(commentRef);
+        } catch (error) {
+            console.error("Error deleting comment:", error);
+            throw new Error("No se pudo eliminar el comentario.");
+        }
     },
 
     /**
@@ -56,12 +63,40 @@ export const commentService = {
             orderBy("createdAt", "desc")
         );
 
-        return onSnapshot(q, (snapshot) => {
-            const comments = snapshot.docs.map(doc => ({
+        return onSnapshot(q, async (snapshot) => {
+            const rawComments = snapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data()
             }));
-            callback(comments);
+
+            // Enriquecer con perfiles actuales (Join en cliente)
+            const enrichedComments = await Promise.all(rawComments.map(async (c) => {
+                const uid = c.authorUid || c.author?.uid; // Retrocompatibilidad
+                if (uid) {
+                    try {
+                        const userSnap = await getDoc(doc(db, "users", uid));
+                        if (userSnap.exists()) {
+                            const ud = userSnap.data();
+                            return {
+                                ...c,
+                                author: {
+                                    uid,
+                                    displayName: ud.nombre || ud.fullName || ud.displayName || 'Músico',
+                                    photoURL: ud.photoURL || null
+                                }
+                            };
+                        }
+                    } catch (e) {
+                        console.error("Error fetching commenter profile:", e);
+                    }
+                }
+                return {
+                    ...c,
+                    author: c.author || { displayName: 'Desconocido', photoURL: null }
+                };
+            }));
+
+            callback(enrichedComments);
         });
     }
 };

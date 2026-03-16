@@ -23,29 +23,39 @@ export const uploadAttachment = (file, path, onProgress) => {
             return reject(new Error("El archivo excede el límite de 2MB."));
         }
 
-        const storageRef = ref(storage, path);
-        const uploadTask = uploadBytesResumable(storageRef, file);
+        try {
+            const storageRef = ref(storage, path);
+            const uploadTask = uploadBytesResumable(storageRef, file);
 
-        uploadTask.on(
-            'state_changed',
-            (snapshot) => {
-                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                if (onProgress) onProgress(progress);
-            },
-            (error) => {
-                console.error("Upload error:", error);
-                reject(error);
-            },
-            async () => {
-                const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                resolve({
-                    url: downloadURL,
-                    name: file.name,
-                    type: file.type,
-                    path: storageRef.fullPath
-                });
-            }
-        );
+            uploadTask.on(
+                'state_changed',
+                (snapshot) => {
+                    const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                    if (onProgress) onProgress(progress);
+                },
+                (error) => {
+                    console.error("Upload error:", error);
+                    reject(new Error("Error al subir el archivo. Revisa tu conexión."));
+                },
+                async () => {
+                    try {
+                        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                        resolve({
+                            url: downloadURL,
+                            name: file.name,
+                            type: file.type,
+                            path: storageRef.fullPath
+                        });
+                    } catch (urlErr) {
+                        console.error("Error getting download URL:", urlErr);
+                        reject(new Error("No se pudo obtener la URL de descarga."));
+                    }
+                }
+            );
+        } catch (error) {
+            console.error("Storage init error:", error);
+            reject(new Error("Error al iniciar la subida."));
+        }
     });
 };
 

@@ -10,7 +10,6 @@
     },
     "bands": {
         "{bandId}": {
-            "id": "string",
             "nombre": "string",
             "ownerId": "string (uid)",
             "inviteCode": "string",
@@ -38,7 +37,6 @@
             },
             "songs": {
                 "{songId}": {
-                    "id": "string",
                     "customId": "string (optional)",
                     "titulo": "string",
                     "duracion": "number (seconds)",
@@ -50,7 +48,6 @@
             },
             "rehearsals": {
                 "{rehearsalId}": {
-                    "id": "string",
                     "customId": "string",
                     "fecha": "date string (YYYY-MM-DD)",
                     "notas": "string",
@@ -63,7 +60,6 @@
             },
             "finances": {
                 "{financeId}": {
-                    "id": "string",
                     "customId": "string",
                     "tipo": "string (ingreso/egreso)",
                     "monto": "number",
@@ -76,7 +72,6 @@
             },
             "gear": {
                 "{gearId}": {
-                    "id": "string",
                     "customId": "string",
                     "name": "string",
                     "tipo": "string",
@@ -88,7 +83,6 @@
             },
             "gigs": {
                 "{gigId}": {
-                    "id": "string",
                     "customId": "string",
                     "fecha": "date string",
                     "lugar": "string",
@@ -102,4 +96,4 @@
             }
         }
     }
-}
+}

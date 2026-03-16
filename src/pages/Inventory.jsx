@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../hooks/useApp';
 import { getGearPaginated, addGear, updateGear, deleteGear } from '../services/firestoreService';
-import { Plus, Trash2, Edit2, Check, X, Search, Pocket, Package, User } from 'lucide-react';
+import { Plus, Trash2, Edit2, X, Search, Package, User, Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import styles from './Inventory.module.css';
 
 const Inventory = () => {
     const { activeBand } = useApp();
@@ -13,6 +15,8 @@ const Inventory = () => {
     const [lastVisible, setLastVisible] = useState(null);
     const [hasMore, setHasMore] = useState(false);
     const [loading, setLoading] = useState(false);
+
+    const [updatingId, setUpdatingId] = useState(null);
 
     const loadInitial = React.useCallback(async () => {
         if (!activeBand) return;
@@ -48,33 +52,39 @@ const Inventory = () => {
         if (activeBand) loadInitial();
     }, [activeBand, loadInitial]);
 
-    // Warn before leaving if form has unsaved changes
-    useEffect(() => {
-        const isDirty = formData.name || formData.owner || formData.notes;
-        const handleBeforeUnload = (e) => {
-            if (showForm && isDirty) {
-                e.preventDefault();
-                e.returnValue = '';
-            }
-        };
-        window.addEventListener('beforeunload', handleBeforeUnload);
-        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-    }, [showForm, formData]);
+    const handleInlineUpdate = async (id, field, value) => {
+        setUpdatingId(id);
+        try {
+            await updateGear(activeBand.id, id, { [field]: value });
+            setGear(prev => prev.map(item => item.id === id ? { ...item, [field]: value } : item));
+        } catch (error) {
+            console.error("Error updating gear:", error);
+            alert("Error al actualizar");
+        } finally {
+            setUpdatingId(null);
+        }
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!formData.name) return;
 
-        if (editingId) {
-            await updateGear(activeBand.id, editingId, formData);
-            setEditingId(null);
-        } else {
-            await addGear(activeBand.id, formData);
+        setLoading(true);
+        try {
+            if (editingId) {
+                await updateGear(activeBand.id, editingId, formData);
+                setEditingId(null);
+            } else {
+                await addGear(activeBand.id, formData);
+            }
+            setFormData({ name: '', category: 'Instrumento', owner: '', condition: 'Bueno', notes: '' });
+            setShowForm(false);
+            loadInitial();
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setLoading(false);
         }
-
-        setFormData({ name: '', category: 'Instrumento', owner: '', condition: 'Bueno', notes: '' });
-        setShowForm(false);
-        loadInitial();
     };
 
     const handleDelete = async (id) => {
@@ -88,6 +98,7 @@ const Inventory = () => {
         setEditingId(item.id);
         setFormData({ name: item.name, category: item.category, owner: item.owner, condition: item.condition, notes: item.notes });
         setShowForm(true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     const filteredGear = gear.filter(i =>
@@ -96,127 +107,166 @@ const Inventory = () => {
     );
 
     return (
-        <div className="container">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
-                <h1 style={{ color: 'var(--accent-primary)', margin: 0 }}>Inventario de Equipo (Gear)</h1>
+        <motion.div 
+            className={styles.container}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+        >
+            <div className={styles.header}>
+                <h1 className={styles.title}>Inventario de Equipo (Gear)</h1>
                 <button
                     onClick={() => { setShowForm(!showForm); setEditingId(null); setFormData({ name: '', category: 'Instrumento', owner: '', condition: 'Bueno', notes: '' }); }}
-                    style={{ background: 'var(--accent-secondary)', color: 'white', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                    className={styles.actionButton}
                 >
                     {showForm ? <X size={20} /> : <Plus size={20} />} {showForm ? 'Cancelar' : 'Agregar Equipo'}
                 </button>
             </div>
 
-            {showForm && (
-                <form className="glass" onSubmit={handleSubmit} style={{ padding: '2rem', marginBottom: '2rem' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
-                        <div>
-                            <label style={{ display: 'block', marginBottom: '0.5rem' }}>Nombre del Equipo *</label>
-                            <input
-                                type="text"
-                                value={formData.name}
-                                placeholder="Ej. Fender Stratocaster"
-                                onChange={e => setFormData({ ...formData, name: e.target.value })}
-                                required
+            <AnimatePresence>
+                {showForm && (
+                    <motion.form 
+                        className={styles.formGrid} 
+                        onSubmit={handleSubmit}
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                    >
+                        <div className={styles.formRow}>
+                            <div className={styles.inputGroup}>
+                                <label className={styles.label}>Nombre del Equipo *</label>
+                                <input
+                                    type="text"
+                                    className="input"
+                                    value={formData.name}
+                                    placeholder="Ej. Fender Stratocaster"
+                                    onChange={e => setFormData({ ...formData, name: e.target.value })}
+                                    required
+                                />
+                            </div>
+                            <div className={styles.inputGroup}>
+                                <label className={styles.label}>Categoría</label>
+                                <select className="select" value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })}>
+                                    <option>Instrumento</option>
+                                    <option>Amplificación</option>
+                                    <option>Pedales / FX</option>
+                                    <option>Audio / Microfonia</option>
+                                    <option>Cables / Accesorios</option>
+                                    <option>Otros</option>
+                                </select>
+                            </div>
+                            <div className={styles.inputGroup}>
+                                <label className={styles.label}>Dueño / Resp.</label>
+                                <input
+                                    type="text"
+                                    className="input"
+                                    value={formData.owner}
+                                    placeholder="Nombre"
+                                    onChange={e => setFormData({ ...formData, owner: e.target.value })}
+                                />
+                            </div>
+                        </div>
+                        <div className={styles.inputGroup}>
+                            <label className={styles.label}>Notas / Estado</label>
+                            <textarea
+                                className="input"
+                                rows="2"
+                                value={formData.notes}
+                                placeholder="Notas técnicas..."
+                                onChange={e => setFormData({ ...formData, notes: e.target.value })}
                             />
                         </div>
-                        <div>
-                            <label style={{ display: 'block', marginBottom: '0.5rem' }}>Categoría</label>
-                            <select value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })}>
-                                <option>Instrumento</option>
-                                <option>Amplificación</option>
-                                <option>Pedales / FX</option>
-                                <option>Audio / Microfonia</option>
-                                <option>Cables / Accesorios</option>
-                                <option>Otros</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label style={{ display: 'block', marginBottom: '0.5rem' }}>Propietario / Responsable</label>
-                            <input
-                                type="text"
-                                value={formData.owner}
-                                placeholder="Nombre"
-                                onChange={e => setFormData({ ...formData, owner: e.target.value })}
-                            />
-                        </div>
-                    </div>
-                    <div style={{ marginBottom: '1.5rem' }}>
-                        <label style={{ display: 'block', marginBottom: '0.5rem' }}>Notas / Estado</label>
-                        <textarea
-                            rows="2"
-                            value={formData.notes}
-                            placeholder="Ej. Recién calibrada, necesita cuerdas nuevas..."
-                            onChange={e => setFormData({ ...formData, notes: e.target.value })}
-                        />
-                    </div>
-                    <button type="submit" style={{ background: 'var(--accent-primary)', color: 'white', width: '100%', fontSize: '1.1rem' }}>
-                        {editingId ? 'Actualizar Equipo' : 'Guardar Equipo'}
-                    </button>
-                </form>
-            )}
+                        <button type="submit" className={styles.submitButton}>
+                            {editingId ? 'Actualizar Equipo' : 'Guardar Equipo'}
+                        </button>
+                    </motion.form>
+                )}
+            </AnimatePresence>
 
-            <div className="glass" style={{ padding: '0.5rem 1rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Search size={20} color="var(--text-secondary)" />
-                <input
-                    type="text"
-                    placeholder="Buscar equipo o categoría..."
-                    style={{ background: 'transparent', border: 'none', boxShadow: 'none' }}
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                />
+            <div className={styles.tableContainer}>
+                <div className={styles.searchBar}>
+                    <Search size={20} color="var(--text-secondary)" />
+                    <input
+                        type="text"
+                        className={styles.searchInput}
+                        placeholder="Buscar por nombre o categoría..."
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                    />
+                </div>
+
+                <table className={styles.table}>
+                    <thead>
+                        <tr>
+                            <th className={styles.th}>Equipo</th>
+                            <th className={styles.th}>Categoría</th>
+                            <th className={styles.th}>Responsable</th>
+                            <th className={styles.th}>Notas</th>
+                            <th className={styles.th}></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <AnimatePresence mode="popLayout">
+                            {filteredGear.map(item => (
+                                <motion.tr 
+                                    key={item.id} 
+                                    className={styles.tr}
+                                    layout
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                >
+                                    <td className={styles.td} data-label="Equipo">
+                                        <h3 className={styles.itemTitle}>{item.name}</h3>
+                                    </td>
+                                    <td className={styles.td} data-label="Categoría">
+                                        <span className={styles.itemCategory}>{item.category}</span>
+                                    </td>
+                                    <td className={styles.td} data-label="Responsable">
+                                        <input 
+                                            className={styles.inlineInput}
+                                            value={item.owner || ''}
+                                            placeholder="Banda"
+                                            onChange={(e) => handleInlineUpdate(item.id, 'owner', e.target.value)}
+                                        />
+                                    </td>
+                                    <td className={styles.td} data-label="Notas">
+                                        <div className={styles.notesCell}>{item.notes || '-'}</div>
+                                    </td>
+                                    <td className={styles.td}>
+                                        <div className={styles.actionsCell}>
+                                            <button onClick={() => startEdit(item)} className={styles.editButton}>
+                                                <Edit2 size={16} />
+                                            </button>
+                                            <button onClick={() => handleDelete(item.id)} className={styles.deleteButton}>
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    </td>
+                                </motion.tr>
+                            ))}
+                        </AnimatePresence>
+                    </tbody>
+                </table>
+
+                {filteredGear.length === 0 && !loading && (
+                    <div className={styles.emptyState}>No hay equipos registrados.</div>
+                )}
+                
+                {loading && gear.length === 0 && (
+                    <div style={{ padding: '2rem' }}>
+                        {[1,2,3].map(i => <div key={i} className={styles.skeleton} />)}
+                    </div>
+                )}
             </div>
 
-            {loading && gear.length === 0 ? (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
-                    {[1, 2, 3, 4, 5, 6].map(i => (
-                        <div key={i} className="glass skeleton" style={{ padding: '1.5rem', height: '140px' }} />
-                    ))}
-                </div>
-            ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
-                    {filteredGear.map(item => (
-                        <div key={item.id} className="glass" style={{ padding: '1.5rem', position: 'relative' }}>
-                            <div style={{ position: 'absolute', top: '1rem', right: '1rem', display: 'flex', gap: '0.5rem' }}>
-                                <button onClick={() => startEdit(item)} style={{ background: 'rgba(139, 92, 246, 0.1)', color: 'var(--accent-primary)', padding: '0.4rem' }}>
-                                    <Edit2 size={16} />
-                                </button>
-                                <button onClick={() => handleDelete(item.id)} style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', padding: '0.4rem' }}>
-                                    <Trash2 size={16} />
-                                </button>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-                                <div style={{ background: 'var(--accent-secondary)', padding: '0.5rem', borderRadius: '10px' }}>
-                                    <Package size={20} color="white" />
-                                </div>
-                                <div>
-                                    <h3 style={{ margin: 0, fontSize: '1.1rem' }}>{item.name}</h3>
-                                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{item.category}</span>
-                                </div>
-                            </div>
-
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.9rem' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-secondary)' }}>
-                                    <User size={14} /> <span>Resp: {item.owner || 'Banda'}</span>
-                                </div>
-                                <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', borderRadius: '8px', marginTop: '0.5rem' }}>
-                                    <span style={{ fontSize: '0.8rem', opacity: 0.7, display: 'block', marginBottom: '0.25rem' }}>Notas Técnicas:</span>
-                                    {item.notes || 'Sin notas.'}
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            )}
-
             {hasMore && !search && (
-                <div style={{ textAlign: 'center', marginTop: '2rem' }}>
-                    <button onClick={loadMore} disabled={loading} style={{ background: 'var(--accent-primary)', color: 'white', padding: '0.75rem 2rem', border: 'none', borderRadius: '30px', cursor: 'pointer' }}>
+                <div className={styles.loadMoreContainer}>
+                    <button onClick={loadMore} disabled={loading} className={styles.loadMoreBtn}>
                         {loading ? 'Cargando...' : 'Cargar más equipo'}
                     </button>
                 </div>
             )}
-        </div>
+        </motion.div>
     );
 };
 

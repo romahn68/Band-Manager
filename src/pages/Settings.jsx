@@ -1,19 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useApp } from '../hooks/useApp';
-import { Settings as SettingsIcon, UserPlus, Shield, Trash2, Save, Printer, ListOrdered, Plus, Database, FileSpreadsheet, Key } from 'lucide-react';
-import { updateBandMetadata, updateUserProfile, bulkAddSongs, bulkAddGear, getSongs, getGear, getMusicians } from '../services/firestoreService';
-import { sendInvitationEmail } from '../services/emailService';
+import { Settings as SettingsIcon, UserPlus, Shield, Trash2, Save, Printer, ListOrdered, Plus, Database, FileSpreadsheet, Key, Copy, MessageCircle, Link, Users, Loader2 } from 'lucide-react';
+import { updateBandMetadata, updateUserProfile, bulkAddSongs, bulkAddGear, getSongs, getGear, getMusicians, createInvite, updateMemberRole } from '../services/firestoreService';
 import ImportExcel from '../components/ImportExcel';
+import { usePermissions } from '../hooks/usePermissions';
+import { useNavigate } from 'react-router-dom';
 
 const Settings = () => {
     const { currentUser, userProfile } = useAuth();
     const { activeBand, updateBandName, createNewBand } = useApp();
+    const { isAdmin } = usePermissions();
+    const navigate = useNavigate();
     const [tempBandName, setTempBandName] = useState(activeBand?.nombre || '');
-    const [inviteEmail, setInviteEmail] = useState('');
     const [loading, setLoading] = useState(false);
-
-
+    const [activeTab, setActiveTab] = useState('profile');
 
     const [profileData, setProfileData] = useState({
         fullName: '',
@@ -23,7 +24,17 @@ const Settings = () => {
         roleInBand: ''
     });
 
+    const [inviteData, setInviteData] = useState({
+        perfil: 'Musico',
+        nombre: '',
+        apellido: '',
+        correo: '',
+        permisos: 'Editor'
+    });
+
     const [recentIds, setRecentIds] = useState({ songs: [], gear: [], musicians: [] });
+    const [musicians, setMusicians] = useState([]);
+    const [updatingRole, setUpdatingRole] = useState(null);
 
     useEffect(() => {
         if (userProfile) {
@@ -50,6 +61,7 @@ const Settings = () => {
                 gear: (g || []).slice(0, 5),
                 musicians: (m || []).slice(0, 5)
             });
+            setMusicians(m || []);
         };
         loadRecentIds();
     }, [activeBand]);
@@ -127,23 +139,50 @@ const Settings = () => {
 
     // ...
 
-    const handleInvite = async (e) => {
-        e.preventDefault();
-        setLoading(true);
+    const handleCopyLink = () => {
+        if (!activeBand?.inviteCode) {
+            alert('No hay código de invitación disponible.');
+            return;
+        }
+        const inviteLink = `${window.location.origin}/unirse/${activeBand.inviteCode}`;
+        navigator.clipboard.writeText(inviteLink);
+        alert('¡Enlace copiado al portapapeles! Envíalo por WhatsApp a tus músicos.');
+    };
+
+    const handleWhatsAppShare = async () => {
+        if (!inviteData.correo || !inviteData.nombre) {
+            alert('Por favor completa Nombre y Correo del invitado antes de compartir.');
+            return;
+        }
+        
         try {
-            const result = await sendInvitationEmail(inviteEmail, activeBand.nombre, activeBand.inviteCode);
-            if (result.success) {
-                alert(`Invitación enviada a ${inviteEmail}`);
-                setInviteEmail('');
-            } else {
-                alert("Modo Simulación (Sin API Key): Invitación registrada para " + inviteEmail);
-                setInviteEmail('');
-            }
+            setLoading(true);
+            await createInvite(activeBand.id, inviteData);
+            const inviteLink = `${window.location.origin}/unirse/${activeBand.inviteCode}`;
+            const text = `¡Hola ${inviteData.nombre}! Únete a la banda ${activeBand.nombre} en Band Manager: ${inviteLink}`;
+            window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
         } catch (error) {
             console.error(error);
-            alert("Error al enviar invitación");
+            alert('Error al generar la invitación.');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleRoleChange = async (memberUid, newRole) => {
+        if (!activeBand || !isAdmin) return;
+        
+        setUpdatingRole(memberUid);
+        try {
+            await updateMemberRole(activeBand.id, memberUid, newRole);
+            // Re-fetch musicians to update UI
+            const m = await getMusicians(activeBand.id);
+            setMusicians(m || []);
+        } catch (error) {
+            console.error("Error changing role:", error);
+            alert("No se pudo actualizar el rol.");
+        } finally {
+            setUpdatingRole(null);
         }
     };
 
@@ -231,30 +270,196 @@ const Settings = () => {
                     </button>
                 </div>
 
-                {/* Data Import Section */}
-                <div className="glass" style={{ padding: '2rem' }}>
-                    <h2 style={{ fontSize: '1.2rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <Database size={20} color="var(--accent-secondary)" /> Importación de Datos
-                    </h2>
-                    <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.85rem' }}>
-                        Carga masiva de información desde archivos Excel (.xlsx) o CSV.
-                    </p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                        <ImportExcel
-                            onImport={handleImportSongs}
-                            mapping={songMapping}
-                            label="Importar Biblioteca de Canciones"
-                        />
-                        <ImportExcel
-                            onImport={handleImportGear}
-                            mapping={gearMapping}
-                            label="Importar Inventario de Equipo"
-                        />
+                {/* Data Import Section - Admin Only */}
+                {isAdmin && (
+                    <div className="glass" style={{ padding: '2rem' }}>
+                        <h2 style={{ fontSize: '1.2rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <Database size={20} color="var(--accent-secondary)" /> Importación de Datos
+                        </h2>
+                        <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.85rem' }}>
+                            Carga masiva de información desde archivos Excel (.xlsx) o CSV.
+                        </p>
+                        <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+                            <a 
+                                href="/templates/Plantilla_Canciones.xlsx" 
+                                download 
+                                className="glass-btn" 
+                                style={{ flex: 1, minWidth: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', textDecoration: 'none', color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '0.75rem', borderRadius: '10px', fontSize: '0.85rem' }}
+                            >
+                                <FileSpreadsheet size={16} /> Plantilla Canciones
+                            </a>
+                            <a 
+                                href="/templates/Plantilla_Inventario.xlsx" 
+                                download 
+                                className="glass-btn" 
+                                style={{ flex: 1, minWidth: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', textDecoration: 'none', color: '#3b82f6', background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.3)', padding: '0.75rem', borderRadius: '10px', fontSize: '0.85rem' }}
+                            >
+                                <FileSpreadsheet size={16} /> Plantilla Inventario
+                            </a>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                            <ImportExcel
+                                onImport={handleImportSongs}
+                                mapping={songMapping}
+                                label="Importar Biblioteca de Canciones"
+                            />
+                            <ImportExcel
+                                onImport={handleImportGear}
+                                mapping={gearMapping}
+                                label="Importar Inventario de Equipo"
+                            />
+                        </div>
+                        <div style={{ marginTop: '2rem', borderTop: '1px solid var(--glass-border)', paddingTop: '1.5rem' }}>
+                            <h3 style={{ fontSize: '1rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <UserPlus size={18} color="var(--accent-primary)" /> Invitar Músico / Personal
+                            </h3>
+                            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
+                                Escriba los datos del invitado para generar su pase de acceso con permisos específicos.
+                            </p>
+                            
+                            <div className="glass" style={{ padding: '1rem', background: 'rgba(0,0,0,0.2)', marginBottom: '1.5rem', overflowX: 'auto' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
+                                    <thead>
+                                        <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--glass-border)' }}>
+                                            <th style={{ padding: '0.5rem', fontSize: '0.75rem', opacity: 0.7 }}>Perfil</th>
+                                            <th style={{ padding: '0.5rem', fontSize: '0.75rem', opacity: 0.7 }}>Nombre</th>
+                                            <th style={{ padding: '0.5rem', fontSize: '0.75rem', opacity: 0.7 }}>Apellido</th>
+                                            <th style={{ padding: '0.5rem', fontSize: '0.75rem', opacity: 0.7 }}>Correo</th>
+                                            <th style={{ padding: '0.5rem', fontSize: '0.75rem', opacity: 0.7 }}>Permisos</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td style={{ padding: '0.5rem' }}>
+                                                <select 
+                                                    value={inviteData.perfil}
+                                                    onChange={(e) => setInviteData({...inviteData, perfil: e.target.value})}
+                                                    style={{ width: '100%', padding: '0.4rem', background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', color: 'white', borderRadius: '4px' }}
+                                                >
+                                                    <option value="Manager">Manager</option>
+                                                    <option value="Musico">Músico</option>
+                                                    <option value="Invitado">Invitado</option>
+                                                </select>
+                                            </td>
+                                            <td style={{ padding: '0.5rem' }}>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Ej. Alejandro"
+                                                    value={inviteData.nombre}
+                                                    onChange={(e) => setInviteData({...inviteData, nombre: e.target.value})}
+                                                    style={{ width: '100%', padding: '0.4rem', background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', color: 'white', borderRadius: '4px' }}
+                                                />
+                                            </td>
+                                            <td style={{ padding: '0.5rem' }}>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Ej. Perez"
+                                                    value={inviteData.apellido}
+                                                    onChange={(e) => setInviteData({...inviteData, apellido: e.target.value})}
+                                                    style={{ width: '100%', padding: '0.4rem', background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', color: 'white', borderRadius: '4px' }}
+                                                />
+                                            </td>
+                                            <td style={{ padding: '0.5rem' }}>
+                                                <input 
+                                                    type="email" 
+                                                    placeholder="correo@gmail.com"
+                                                    value={inviteData.correo}
+                                                    onChange={(e) => setInviteData({...inviteData, correo: e.target.value})}
+                                                    style={{ width: '100%', padding: '0.4rem', background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', color: 'white', borderRadius: '4px' }}
+                                                />
+                                            </td>
+                                            <td style={{ padding: '0.5rem' }}>
+                                                <select 
+                                                    value={inviteData.permisos}
+                                                    onChange={(e) => setInviteData({...inviteData, permisos: e.target.value})}
+                                                    style={{ width: '100%', padding: '0.4rem', background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', color: 'white', borderRadius: '4px' }}
+                                                >
+                                                    <option value="Administrador">Administrador</option>
+                                                    <option value="Editor">Editor</option>
+                                                    <option value="Visor">Visor</option>
+                                                </select>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center' }}>
+                                <button
+                                    onClick={handleWhatsAppShare}
+                                    disabled={loading}
+                                    style={{ width: '200px', background: 'white', color: 'black', border: '2px solid black', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.75rem' }}
+                                >
+                                    {loading ? 'Generando...' : <><MessageCircle size={18} /> Compartir</>}
+                                </button>
+                                <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', opacity: 0.6 }}>
+                                    Al compartir, se guardarán los datos y se generará el enlace de WhatsApp.
+                                </p>
+                            </div>
+                        </div>
                     </div>
-                    <div style={{ marginTop: '1rem', fontSize: '0.75rem', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
-                        Nota: Si el archivo incluye una columna "Código", se respetará; si no, el sistema generará uno automáticamente.
+                )}
+
+                {/* Member Management Section - Admin Only */}
+                {activeTab === 'admin' && isAdmin && (
+                    <div className="glass" style={{ padding: '2rem', gridColumn: '1 / -1' }}>
+                        <h2 style={{ fontSize: '1.2rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <Users size={20} color="var(--accent-primary)" /> Gestión de Miembros y Permisos
+                        </h2>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
+                            Modifique los roles de los integrantes de la banda para controlar su nivel de acceso.
+                        </p>
+                        <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '500px' }}>
+                                <thead>
+                                    <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--glass-border)', fontSize: '0.75rem', opacity: 0.7 }}>
+                                        <th style={{ padding: '0.75rem' }}>Miembro</th>
+                                        <th style={{ padding: '0.75rem' }}>Perfil actual</th>
+                                        <th style={{ padding: '0.75rem' }}>Permisos (Rol)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {musicians.filter(m => m.uid).map(m => (
+                                        <tr key={m.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                            <td style={{ padding: '1rem' }}>
+                                                <div style={{ fontWeight: 'bold' }}>{m.nombre}</div>
+                                                <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>{m.email}</div>
+                                            </td>
+                                            <td style={{ padding: '1rem' }}>
+                                                <span style={{ background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem' }}>
+                                                    {m.profile || 'Músico'}
+                                                </span>
+                                            </td>
+                                            <td style={{ padding: '1rem' }}>
+                                                {m.uid === currentUser.uid ? (
+                                                    <span style={{ fontSize: '0.9rem', color: 'var(--accent-secondary)', fontWeight: 'bold' }}>
+                                                        {m.role} (Tú)
+                                                    </span>
+                                                ) : (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                        {updatingRole === m.uid ? (
+                                                            <Loader2 size={16} className="animate-spin" />
+                                                        ) : (
+                                                            <select 
+                                                                value={m.role} 
+                                                                onChange={(e) => handleRoleChange(m.uid, e.target.value)}
+                                                                style={{ padding: '0.4rem', background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', color: 'white', borderRadius: '4px', minWidth: '120px' }}
+                                                            >
+                                                                <option value="Administrador">Administrador</option>
+                                                                <option value="Editor">Editor</option>
+                                                                <option value="Visor">Visor</option>
+                                                            </select>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
-                </div>
+                )}
 
                 {/* ID Dictionary Section */}
                 <div className="glass" style={{ padding: '2rem', gridColumn: '1 / -1' }}>
@@ -411,7 +616,7 @@ const Settings = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {riderData.channels.map((ch, index) => (
+                                {(riderData?.channels || []).map((ch, index) => (
                                     <tr key={index}>
                                         <td style={{ padding: '0.5rem', width: '60px' }}>
                                             <input type="text" value={ch.ch} onChange={(e) => updateChannel(index, 'ch', e.target.value)} style={{ padding: '0.4rem' }} />
@@ -439,48 +644,18 @@ const Settings = () => {
                     </div>
                 </div>
 
-                {/* Team Management - Placeholder for logic */}
-                <div className="glass" style={{ padding: '2rem', gridColumn: '1 / -1' }}>
-                    <h2 style={{ fontSize: '1.5rem', marginBottom: '1.5rem' }}>Gestión de Equipo (Roles y Permisos)</h2>
-                    <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem' }}>Invita a otros músicos o managers a colaborar en la nube.</p>
-
-                    <form onSubmit={handleInvite} style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', maxWidth: '600px' }}>
-                        <input
-                            type="email"
-                            placeholder="correo@ejemplo.com"
-                            value={inviteEmail}
-                            onChange={(e) => setInviteEmail(e.target.value)}
-                            required
-                        />
-                        <button type="submit" style={{ background: 'var(--accent-secondary)', color: 'white', whiteSpace: 'nowrap' }}>
-                            <UserPlus size={18} /> Invitar Músico
-                        </button>
-                    </form>
-
-                    <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '1rem' }}>
-                            <thead>
-                                <tr style={{ borderBottom: '1px solid var(--glass-border)', textAlign: 'left', color: 'var(--text-secondary)' }}>
-                                    <th style={{ padding: '1rem' }}>Usuario</th>
-                                    <th style={{ padding: '1rem' }}>Rol</th>
-                                    <th style={{ padding: '1rem' }}>Estado</th>
-                                    <th style={{ padding: '1rem' }}>Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr style={{ borderBottom: '1px solid var(--glass-border)' }}>
-                                    <td style={{ padding: '1rem' }}>{userProfile?.fullName} (Tú)</td>
-                                    <td style={{ padding: '1rem' }}>
-                                        <span style={{ padding: '0.2rem 0.6rem', borderRadius: '12px', background: 'rgba(139, 92, 246, 0.2)', color: 'var(--accent-primary)', fontSize: '0.8rem' }}>
-                                            ADMIN / {userProfile?.roleInBand?.toUpperCase()}
-                                        </span>
-                                    </td>
-                                    <td style={{ padding: '1rem', color: '#10b981' }}>Activo</td>
-                                    <td style={{ padding: '1rem' }}>-</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+                {/* TEAM MANAGEMENT LINK */}
+                <div className="glass" style={{ padding: '2rem', gridColumn: '1 / -1', textAlign: 'center' }}>
+                    <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>Gestión de Músicos y Permisos</h2>
+                    <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
+                        Para invitar nuevos miembros o cambiar roles (promover a Manager/Admin), utiliza el panel dedicado de Músicos.
+                    </p>
+                    <button 
+                        onClick={() => navigate('/musicos')}
+                        style={{ background: 'var(--accent-primary)', color: 'white', padding: '0.8rem 2rem' }}
+                    >
+                        <Users size={18} style={{ marginRight: '0.5rem' }} /> Ir a Gestión de Músicos
+                    </button>
                 </div>
 
             </div>

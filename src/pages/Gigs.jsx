@@ -137,7 +137,7 @@ const Gigs = () => {
                         <div style={{ marginBottom: '2rem' }}>
                             <label style={{ display: 'block', marginBottom: '1rem' }}>Orden del Show (Arrastra para reordenar):</label>
                             <Reorder.Group axis="y" values={formData.setlist} onReorder={(newOrder) => setFormData({ ...formData, setlist: newOrder })}>
-                                {formData.setlist.map(id => {
+                                {(formData.setlist || []).map(id => {
                                     const song = songs.find(s => s.id === id);
                                     return (
                                         <Reorder.Item key={id} value={id}>
@@ -169,7 +169,7 @@ const Gigs = () => {
                                         <CalendarIcon size={24} color="white" />
                                     </div>
                                     <div>
-                                        <h3 style={{ margin: 0 }}>{new Date(g.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}</h3>
+                                        <h3 style={{ margin: 0 }}>{g.fecha ? new Date(g.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'Fecha pendiente'}</h3>
                                         <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Concierto confirmado</p>
                                     </div>
                                 </div>
@@ -178,7 +178,7 @@ const Gigs = () => {
                                         title={`Concierto: ${activeBand?.nombre}`}
                                         date={g.fecha}
                                         location="Por confirmar"
-                                        description={`Setlist de ${g.setlist.length} canciones.`}
+                                        description={`Setlist de ${g.setlist?.length || 0} canciones.`}
                                     />
                                     <button
                                         onClick={handlePrint}
@@ -195,10 +195,10 @@ const Gigs = () => {
 
                             <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '12px', padding: '1rem' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', color: 'var(--accent-secondary)', fontWeight: '600' }}>
-                                    <Music size={16} /> Setlist ({g.setlist.length} temas)
+                                    <Music size={16} /> Setlist ({g.setlist?.length || 0} temas)
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                                    {g.setlist.map((id, index) => {
+                                    {g.setlist?.map((id, index) => {
                                         const song = songs.find(s => s.id === id);
                                         return (
                                             <div key={id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', color: 'white' }}>
@@ -224,7 +224,7 @@ const Gigs = () => {
                         <div className="print-only" style={{ padding: '40px' }}>
                             <div style={{ borderBottom: '2px solid black', marginBottom: '20px', paddingBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                                 <h1 style={{ margin: 0, fontSize: '24pt' }}>Setlist: {activeBand?.nombre}</h1>
-                                <span style={{ fontSize: '14pt' }}>Fecha: {new Date(g.fecha).toLocaleDateString()}</span>
+                                <span style={{ fontSize: '14pt' }}>Fecha: {g.fecha ? new Date(g.fecha).toLocaleDateString() : 'Pendiente'}</span>
                             </div>
 
                             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -236,7 +236,7 @@ const Gigs = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {g.setlist.map((id, index) => {
+                                    {(g.setlist || []).map((id, index) => {
                                         const song = songs.find(s => s.id === id);
                                         return (
                                             <tr key={index} style={{ borderBottom: '1px solid #ddd' }}>

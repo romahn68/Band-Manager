@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { getBandByInviteCode, joinBand } from '../services/firestoreService';
+import { getBandByInviteCode, joinBand, getInviteByEmail } from '../services/firestoreService';
 import { Loader2, Music, CheckCircle2 } from 'lucide-react';
 
 const JoinBand = () => {
@@ -12,6 +12,7 @@ const JoinBand = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [joined, setJoined] = useState(false);
+    const [inviteInfo, setInviteInfo] = useState(null);
 
     useEffect(() => {
         const fetchBand = async () => {
@@ -19,6 +20,13 @@ const JoinBand = () => {
                 const b = await getBandByInviteCode(code);
                 if (b) {
                     setBand(b);
+                    // Check for invitation hint in URL
+                    const params = new URLSearchParams(window.location.search);
+                    const emailHint = params.get('email');
+                    if (emailHint) {
+                        const invite = await getInviteByEmail(b.id, emailHint);
+                        if (invite) setInviteInfo(invite);
+                    }
                 } else {
                     setError("Código de invitación no válido.");
                 }
@@ -91,11 +99,26 @@ const JoinBand = () => {
                     </>
                 ) : (
                     <>
-                        <h1 style={{ marginBottom: '1rem' }}>Invitación Recibida</h1>
-                        <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem', lineHeight: '1.6' }}>
-                            Has sido invitado a unirte a la banda:<br />
-                            <strong style={{ fontSize: '1.8rem', color: 'white', display: 'block', marginTop: '0.5rem' }}>{band?.nombre}</strong>
-                        </p>
+                        {inviteInfo ? (
+                            <>
+                                <h1 style={{ marginBottom: '0.5rem' }}>¡Hola {inviteInfo.nombre}!</h1>
+                                <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
+                                    Fuiste invitado a unirte a:
+                                    <strong style={{ fontSize: '1.8rem', color: 'white', display: 'block', marginTop: '0.5rem' }}>{band?.nombre}</strong>
+                                </p>
+                                <div style={{ background: 'rgba(139, 92, 246, 0.1)', padding: '1rem', borderRadius: '8px', marginBottom: '2rem', fontSize: '0.9rem', color: 'var(--accent-primary)' }}>
+                                    Entrarás como <strong>{inviteInfo.perfil}</strong> ({inviteInfo.permisos})
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <h1 style={{ marginBottom: '1rem' }}>Invitación Recibida</h1>
+                                <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem', lineHeight: '1.6' }}>
+                                    Has sido invitado a unirte a la banda:<br />
+                                    <strong style={{ fontSize: '1.8rem', color: 'white', display: 'block', marginTop: '0.5rem' }}>{band?.nombre}</strong>
+                                </p>
+                            </>
+                        )}
 
                         {!currentUser && (
                             <div style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', padding: '1rem', borderRadius: '8px', marginBottom: '2rem', fontSize: '0.9rem' }}>

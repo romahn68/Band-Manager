@@ -297,3 +297,46 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* Skeleton Styles */
+.skeletonContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.skeletonHeader {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.skeletonCircle {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.skeletonText {
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.skeletonTitle {
+    width: 150px;
+    height: 24px;
+}
+
+.skeletonBody {
+    width: 80%;
+    height: 40px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+}
+
+.skeletonSub {
+    width: 60%;
+    height: 20px;
+}

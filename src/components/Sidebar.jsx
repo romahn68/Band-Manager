@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Users, Music, Calendar, Mic2, LayoutDashboard, Settings, LogOut, User, Package, DollarSign } from 'lucide-react';
+import { Users, Music, Calendar, Mic2, LayoutDashboard, Settings, LogOut, User, Package, DollarSign, Server } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import BandSwitcher from './BandSwitcher';
 import styles from './Sidebar.module.css';
@@ -12,7 +12,7 @@ import { usePermissions } from '../hooks/usePermissions';
 
 const Sidebar = ({ isOpen, setIsOpen }) => {
     const { userProfile, currentUser, logout } = useAuth();
-    const { canViewFinances, canEditBand } = usePermissions();
+    const { canViewFinances, canAccessSettings } = usePermissions();
     const navigate = useNavigate();
     const isMobile = window.innerWidth <= 768;
 
@@ -33,7 +33,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
         { to: '/musicos', icon: <Users size={20} />, label: 'Músicos', visible: true },
         { to: '/inventario', icon: <Package size={20} />, label: 'Inventario', visible: true },
         { to: '/finanzas', icon: <DollarSign size={20} />, label: 'Finanzas', visible: canViewFinances },
-        { to: '/configuracion', icon: <Settings size={20} />, label: 'Ajustes', visible: canEditBand },
+        { to: '/configuracion', icon: <Settings size={20} />, label: 'Ajustes', visible: canAccessSettings },
     ].filter(item => item.visible);
 
     const sidebarVariants = {
@@ -129,7 +129,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
                                 style={{ color: '#10b981' }} // Green for Dev
                             >
                                 <span className={styles.navIcon}><Server size={20} /></span>
-                                <span>Dev Tools</span>
+                                <span>Cuarto de Máquinas</span>
                             </NavLink>
                         </div>
                     )}

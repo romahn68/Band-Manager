@@ -5,8 +5,8 @@ import { Music, Users, Mic2, Calendar, Edit2, ArrowRight, Zap } from 'lucide-rea
 import { useNavigate } from 'react-router-dom';
 import SmartTuner from '../components/SmartTuner';
 import StatCard from '../components/StatCard';
+import SkeletonLoader from '../components/SkeletonLoader';
 import styles from './Dashboard.module.css';
-// eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';
 
 const containerVariants = {
@@ -127,7 +127,7 @@ const Dashboard = () => {
                     transition={{ delay: 0.4 }}
                     className={styles.subtitle}
                 >
-                    <Zap size={16} inline style={{ marginRight: '8px', verticalAlign: 'middle' }} />
+                    <Zap size={16} className={styles.zapIcon} />
                     Panel de Control Elite
                 </motion.p>
             </header>
@@ -135,31 +135,43 @@ const Dashboard = () => {
             {/* Next Gig Hero Widget */}
             <motion.div
                 variants={itemVariants}
-                className={`glass ${styles.heroWidget} ${loading ? 'skeleton' : ''}`}
+                className={`glass ${styles.heroWidget}`}
             >
-                <div className={styles.heroContent}>
-                    <h3><Calendar size={24} /> Próximo Evento</h3>
-                    {nextGig ? (
-                        <div>
-                            <h2 className={styles.heroTitle}>
-                                {new Date(nextGig.fecha).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
-                            </h2>
-                            <p className={styles.heroText}>
-                                {nextGig.setlist.length} canciones preparadas para el show
-                            </p>
+                {loading ? (
+                    <div className={styles.heroContent}>
+                        <div className={styles.skeletonHeader}>
+                            <div className={styles.skeletonCircle} />
+                            <div className={`${styles.skeletonText} ${styles.skeletonTitle}`} />
                         </div>
-                    ) : (
-                        <div>
-                            <h2 className={styles.heroEmptyTitle}>Escenario Vacío</h2>
-                            <p className={styles.heroEmptyText}>Tu próxima gran fecha te está esperando.</p>
-                        </div>
-                    )}
-                </div>
+                        <div className={`${styles.skeletonText} ${styles.skeletonBody}`} />
+                        <div className={`${styles.skeletonText} ${styles.skeletonSub}`} />
+                    </div>
+                ) : (
+                    <div className={styles.heroContent}>
+                        <h3><Calendar size={24} /> Próximo Evento</h3>
+                        {nextGig ? (
+                            <div>
+                                <h2 className={styles.heroTitle}>
+                                    {nextGig.fecha ? new Date(nextGig.fecha).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }) : 'Fecha pendiente'}
+                                </h2>
+                                <p className={styles.heroText}>
+                                    {nextGig.setlist?.length || 0} canciones preparadas para el show
+                                </p>
+                            </div>
+                        ) : (
+                            <div>
+                                <h2 className={styles.heroEmptyTitle}>Escenario Vacío</h2>
+                                <p className={styles.heroEmptyText}>Tu próxima gran fecha te está esperando.</p>
+                            </div>
+                        )}
+                    </div>
+                )}
                 <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => navigate('/conciertos')}
                     className={styles.heroBtn}
+                    disabled={loading}
                 >
                     {nextGig ? 'Gestionar Show' : 'Programar Ahora'} <ArrowRight size={22} />
                 </motion.button>
@@ -171,10 +183,7 @@ const Dashboard = () => {
                 <div className={styles.statsSection}>
                     {loading ? (
                         <>
-                            <div className={`glass ${styles.statCard} skeleton`} style={{ height: '120px' }} />
-                            <div className={`glass ${styles.statCard} skeleton`} style={{ height: '120px' }} />
-                            <div className={`glass ${styles.statCard} skeleton`} style={{ height: '120px' }} />
-                            <div className={`glass ${styles.statCard} skeleton`} style={{ height: '120px' }} />
+                            <SkeletonLoader height="120px" borderRadius="16px" count={4} className={styles.statsGridSkeleton} />
                         </>
                     ) : (
                         <>

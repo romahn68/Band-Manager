@@ -5,24 +5,56 @@ import { auth, googleProvider, db } from './firebase';
 import { AuthContext } from './hooks/Contexts';
 import {
     signInWithPopup,
+    signInWithRedirect,
+    getRedirectResult,
     signOut,
     onAuthStateChanged,
     createUserWithEmailAndPassword,
-    signInWithEmailAndPassword
+    signInWithEmailAndPassword,
+    setPersistence,
+    browserLocalPersistence
 } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import LoadingScreen from './components/LoadingScreen';
 
 export const AuthProvider = ({ children }) => {
     const [currentUser, setCurrentUser] = useState(null);
     const [userProfile, setUserProfile] = useState(null);
     const [loading, setLoading] = useState(true);
     const [authError, setAuthError] = useState(null);
-
     const [profileLoading, setProfileLoading] = useState(true);
 
-    const loginWithGoogle = () => {
+    // Initialize persistence and handle redirect results
+    useEffect(() => {
+        const initAuth = async () => {
+            try {
+                await setPersistence(auth, browserLocalPersistence);
+                const result = await getRedirectResult(auth);
+                if (result?.user) {
+                    console.log("AuthContext: Redirect login success");
+                }
+            } catch (error) {
+                console.error("AuthContext: Error during auth initialization:", error);
+                setAuthError(error);
+            }
+        };
+        initAuth();
+    }, []);
+
+    const loginWithGoogle = async () => {
         setAuthError(null);
-        return signInWithPopup(auth, googleProvider);
+        setLoading(true);
+        try {
+            // Use popup for desktop, redirect for mobile/webview if possible
+            // For now, providing both but defaulting to popup as per original
+            // In a real mobile app (Capacitor), this would use a native plugin
+            return await signInWithPopup(auth, googleProvider);
+        } catch (error) {
+            if (error.code === 'auth/popup-blocked') {
+                return signInWithRedirect(auth, googleProvider);
+            }
+            throw error;
+        }
     };
 
     const registerWithEmail = (email, password) => {
@@ -37,74 +69,75 @@ export const AuthProvider = ({ children }) => {
 
     const logout = () => {
         setAuthError(null);
+        setUserProfile(null);
         return signOut(auth);
     };
 
     useEffect(() => {
+        // Safety timeout: if auth/profile takes more than 8s (relaxed for slower mobile nets), let the app try to render
+        const safetyTimer = setTimeout(() => {
+            if (loading) {
+                console.warn("Auth initialization safety timeout reached (6s). Forcing load.");
+                setLoading(false);
+                setProfileLoading(false);
+            }
+        }, 6000);
+
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
             setCurrentUser(user);
-            setAuthError(null); // Clear previous errors on state change
-            setProfileLoading(true); // Start loading profile when auth state changes
-
+            setAuthError(null);
+            
             if (user) {
+                setProfileLoading(true);
                 try {
                     const docRef = doc(db, "users", user.uid);
-                    // Removed arbitrary timeout - let Firestore handle network latency
                     const docSnap = await getDoc(docRef);
 
                     if (docSnap.exists()) {
                         setUserProfile(docSnap.data());
                     } else {
-                        // Explicitly null - user exists in Auth but not in Firestore (needs Onboarding)
-                        setUserProfile(null);
+                        // NEW: Create a placeholder profile to avoid redirect loops if onboarding fails
+                        const initialProfile = {
+                            email: user.email,
+                            displayName: user.displayName,
+                            photoURL: user.photoURL,
+                            createdAt: serverTimestamp(),
+                            isNewUser: true
+                        };
+                        setUserProfile(initialProfile);
                     }
                 } catch (error) {
                     console.error("AuthContext: Error fetching user profile:", error);
                     setAuthError(error);
-                    // Maintain userProfile as null or previous state? 
-                    // If we set null and loading false, Login redirects to Onboarding. 
-                    // We must block that by showing Error UI below.
+                } finally {
+                    setProfileLoading(false);
                 }
             } else {
                 setUserProfile(null);
+                setProfileLoading(false);
             }
+            
+            clearTimeout(safetyTimer);
             setLoading(false);
-            setProfileLoading(false); // Profile load complete
         });
-        return unsubscribe;
+
+        return () => {
+            clearTimeout(safetyTimer);
+            unsubscribe();
+        };
     }, []);
 
     const retryAuth = () => {
         setLoading(true);
         setAuthError(null);
-        // Triggering a re-check relies on onAuthStateChanged firing or manual fetch.
-        // Since onAuthStateChanged might not fire if user is same, we might need manual fetch logic here.
-        // Simplest strategy: Reload page to force full re-sync.
         window.location.reload();
     };
 
-    // --- RENDER LOGIC ---
-
     if (loading) {
-        return (
-            <div style={{
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                height: '100vh',
-                background: '#0a0a0c',
-                color: '#8b5cf6',
-                fontFamily: 'Lato, sans-serif'
-            }}>
-                <div className="glass" style={{ padding: '2rem', textAlign: 'center' }}>
-                    <h2 style={{ marginBottom: '1rem' }}>Band Manager</h2>
-                    <p style={{ color: '#9ca3af' }}>Sincronizando sesión...</p>
-                </div>
-            </div>
-        );
+        return <LoadingScreen message="Sincronizando sesión..." />;
     }
 
-    if (authError) {
+    if (authError && !currentUser) {
         return (
             <div style={{
                 display: 'flex',
@@ -117,7 +150,7 @@ export const AuthProvider = ({ children }) => {
                 <div className="glass" style={{ padding: '2.5rem', textAlign: 'center', maxWidth: '400px', width: '90%' }}>
                     <h2 style={{ color: '#ef4444', marginBottom: '1rem' }}>Error de Conexión</h2>
                     <p style={{ color: '#9ca3af', marginBottom: '1.5rem' }}>
-                        No pudimos recuperar tu perfil. Verifica tu conexión a internet.
+                        No pudimos establecer conexión con los servicios de autenticación.
                     </p>
                     <button
                         onClick={retryAuth}
@@ -134,8 +167,8 @@ export const AuthProvider = ({ children }) => {
                         Reintentar
                     </button>
                     {import.meta.env.DEV && (
-                        <pre style={{ marginTop: '1rem', color: '#666', fontSize: '0.7rem', textAlign: 'left', overflow: 'auto' }}>
-                            {authError.message}
+                        <pre style={{ marginTop: '1rem', color: '#ef4444', fontSize: '0.7rem', textAlign: 'left', overflow: 'auto', background: 'rgba(0,0,0,0.3)', padding: '0.5rem' }}>
+                            {authError.code || authError.message}
                         </pre>
                     )}
                 </div>
@@ -159,4 +192,5 @@ export const AuthProvider = ({ children }) => {
         </AuthContext.Provider>
     );
 };
+
 

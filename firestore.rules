@@ -19,25 +19,20 @@ service cloud.firestore {
     }
 
     function isAdmin(bandId) {
-      return isMember(bandId) && getRole(bandId) == 'Admin';
+      return (isMember(bandId) && getRole(bandId) == 'Administrador') || 
+             (isAuthenticated() && get(/databases/$(database)/documents/bands/$(bandId)).data.ownerId == request.auth.uid);
     }
 
-    // Función para verificar Super Admin global (reemplaza uso de emails hardcodeados)
+    function isEditor(bandId) {
+      return isAdmin(bandId) || (isMember(bandId) && getRole(bandId) == 'Editor');
+    }
+
+    function isVisor(bandId) {
+      return isMember(bandId);
+    }
+
     function isSuperAdmin() {
-      return isAuthenticated() && exists(/databases/$(database)/documents/super_admins/$(request.auth.uid));
-    }
-
-    // Helper: Check if user is in the 'members' array of the band doc (Legacy/Fallback check)
-    function isLegacyMember(bandId) {
-      // access the band document directly
-      let bandData = get(/databases/$(database)/documents/bands/$(bandId)).data;
-      return request.auth.uid in bandData.members || request.auth.uid == bandData.ownerId;
-    }
-
-    function isManager(bandId) {
-      // Allow if standard role check passes OR if they are the owner (fail-safe)
-      return (isMember(bandId) && (getRole(bandId) == 'Manager' || getRole(bandId) == 'Admin')) 
-             || (isAuthenticated() && get(/databases/$(database)/documents/bands/$(bandId)).data.ownerId == request.auth.uid);
+      return isAuthenticated() && request.auth.token.email == 'josimaromahn@gmail.com';
     }
 
     // Usuarios: Solo el dueño puede leer/escribir su perfil, o Devs pueden listar todos
@@ -53,50 +48,59 @@ service cloud.firestore {
       allow create: if isAuthenticated();
       
       // Solo miembros pueden leer la banda
-      allow get: if isMember(bandId);
+      allow get: if isMember(bandId) || isAdmin(bandId);
       
-      // Permitir listado limitado para búsqueda por código de invitación
-      allow list: if isAuthenticated() && 
-        (request.query.limit <= 1 && request.query.filters.size() == 1 && 'inviteCode' in request.query.filters);
+      // Permitir listado para búsqueda de mis propias bandas O por código de invitación O SuperAdmin
+      allow list: if isAuthenticated() && (
+        (request.query.limit <= 1 && 'inviteCode' in request.query.filters) ||
+        (request.auth.uid in resource.data.members) ||
+        isSuperAdmin()
+      );
+
+      allow delete: if isSuperAdmin();
 
       // Solo Admins pueden actualizar la banda (nombre, configuración)
       allow update: if isAdmin(bandId);
       
-      // Subcolecciones
-      
-      // Finances: Solo Managers y Admins
+      // Finances: Solo Administradores
       match /finances/{docId} {
-        allow read, write: if isManager(bandId);
+        allow read, write: if isAdmin(bandId) || isSuperAdmin();
       }
 
       // Musicians: 
       match /musicians/{memberId} {
-        allow read: if isMember(bandId) || isLegacyMember(bandId);
-        // Allow write if Manager OR if user is writing to their own UID slot (Migration)
-        allow write: if isManager(bandId) || (request.auth.uid == memberId && isLegacyMember(bandId));
+        allow read: if isVisor(bandId) || isSuperAdmin();
+        allow create: if isAuthenticated() && request.auth.uid == memberId;
+        allow update: if isEditor(bandId) || (request.auth.uid == memberId);
+        allow delete: if isAdmin(bandId) || isSuperAdmin();
       }
 
       // Generic Content (Songs, Gigs, Gear, Rehearsals)
-      match /songs/{documentId} { allow read, write: if isMember(bandId); }
-      match /gigs/{documentId} { allow read, write: if isMember(bandId); }
-      match /gear/{documentId} { allow read, write: if isMember(bandId); }
-      match /rehearsals/{documentId} { allow read, write: if isMember(bandId); }
-      match /instruments/{documentId} { allow read, write: if isMember(bandId); }
+      match /songs/{documentId} { allow read: if isVisor(bandId); allow write: if isEditor(bandId) || isSuperAdmin(); }
+      match /gigs/{documentId} { allow read: if isVisor(bandId); allow write: if isEditor(bandId) || isSuperAdmin(); }
+      match /gear/{documentId} { allow read: if isVisor(bandId); allow write: if isEditor(bandId) || isSuperAdmin(); }
+      match /rehearsals/{documentId} { allow read: if isVisor(bandId); allow write: if isEditor(bandId) || isSuperAdmin(); }
+      match /instruments/{documentId} { allow read: if isVisor(bandId); allow write: if isEditor(bandId) || isSuperAdmin(); }
 
-      // Sistema de Comentarios
+      // Sistema de Comentarios (Refactorizado a authorUid)
       match /comments/{commentId} {
-        allow read: if isMember(bandId);
-        allow create: if isMember(bandId) && request.resource.data.author.uid == request.auth.uid;
-        allow update, delete: if isMember(bandId) && (
-          resource.data.author.uid == request.auth.uid || isAdmin(bandId)
-        );
+        allow read: if isMember(bandId) || isSuperAdmin();
+        allow create: if isMember(bandId) && request.resource.data.authorUid == request.auth.uid;
+        allow update, delete: if (isMember(bandId) && (resource.data.authorUid == request.auth.uid || isAdmin(bandId))) || isSuperAdmin();
+      }
+
+      // Sistema de Invitaciones Personalizadas
+      match /invites/{email} {
+        allow create, update, delete: if isAdmin(bandId) || isSuperAdmin();
+        allow read: if isAdmin(bandId) || isSuperAdmin() || (isAuthenticated() && request.auth.token.email.lower() == email.lower());
       }
     }
 
     // System Settings (Feature Flags) - Global
     match /system_settings/{docId} {
-      allow read: if isAuthenticated(); // All users need to read flags (e.g. maintenance mode)
+      allow read: if true; // All users (including visitors) need to read flags (e.g. maintenance mode)
       allow write: if isSuperAdmin();
     }
   }
 }
+

@@ -6,25 +6,35 @@ import { generateIdCode } from './utils/codeGenerator';
 import { doc, getDoc, collection, query, where, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from './firebase';
 
+import { normalizeRole } from './utils/constants';
+
 export const AppProvider = ({ children }) => {
     const { currentUser, userProfile, setUserProfile } = useAuth();
     const [activeBand, setActiveBand] = useState(null);
     const [userBands, setUserBands] = useState([]);
-    const [userRole, setUserRole] = useState(null); // Add userRole state
+    const [userRole, setUserRole] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+    const [ghostMode, setGhostMode] = useState(false);
 
     // Fetch Role
     useEffect(() => {
         const fetchRole = async () => {
             if (activeBand && currentUser) {
+                if (ghostMode) {
+                    setUserRole('Administrador');
+                    return;
+                }
+                
+                // Pre-fetch cleanup: clear old role immediately to prevent race conditions
+                setUserRole(null);
+
                 try {
                     // Try to get role from the new standardized structure first
                     const memberRef = doc(db, "bands", activeBand.id, "musicians", currentUser.uid);
                     const memberDoc = await getDoc(memberRef);
 
                     if (memberDoc.exists()) {
-                        setUserRole(memberDoc.data().role);
+                        setUserRole(normalizeRole(memberDoc.data().role));
                     } else {
                         // Fallback: search in collection if not found by ID (legacy support)
                         const q = query(
@@ -44,8 +54,8 @@ export const AppProvider = ({ children }) => {
                             const newRef = doc(db, "bands", activeBand.id, "musicians", currentUser.uid);
                             await setDoc(newRef, {
                                 ...legacyData,
-                                uid: currentUser.uid, // Ensure UID is set
-                                musician_id: currentUser.uid // Ensure standard ID
+                                uid: currentUser.uid,
+                                musician_id: currentUser.uid
                             });
 
                             // 2. Delete old doc
@@ -56,14 +66,14 @@ export const AppProvider = ({ children }) => {
                                 console.warn("Could not delete legacy doc (minor):", e);
                             }
 
-                            setUserRole(legacyData.role);
+                            setUserRole(normalizeRole(legacyData.role));
                         } else {
-                            setUserRole('Miembro'); // Default
+                            setUserRole('Visor'); // Standardized default
                         }
                     }
                 } catch (error) {
                     console.error("Error fetching role:", error);
-                    setUserRole('Miembro');
+                    setUserRole('Visor');
                 }
             } else {
                 setUserRole(null);
@@ -136,7 +146,7 @@ export const AppProvider = ({ children }) => {
         };
 
         setup();
-    }, [currentUser]);
+    }, [currentUser, userProfile?.activeBandId]);
 
     // Persist active band choice
     useEffect(() => {
@@ -197,17 +207,33 @@ export const AppProvider = ({ children }) => {
         }
     };
 
+    const enterGhostMode = (band) => {
+        setGhostMode(true);
+        setActiveBand(band);
+    };
+
+    const exitGhostMode = () => {
+        setGhostMode(false);
+        // Reset to real band (setup will handle this)
+        const savedBandId = localStorage.getItem(`activeBandId_${currentUser.uid}`);
+        const realBand = userBands.find(b => b.id === savedBandId) || userBands[0];
+        setActiveBand(realBand);
+    };
+
     return (
         <AppContext.Provider value={{
             activeBand,
             userBands,
             userRole,
+            ghostMode,
+            enterGhostMode,
+            exitGhostMode,
             switchBand,
             refreshBands,
             updateBandName,
             createNewBand,
             loading,
-            error
+            error: null
         }}>
             {children}
         </AppContext.Provider>

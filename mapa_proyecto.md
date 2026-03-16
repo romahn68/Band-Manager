@@ -32,4 +32,5 @@ Band Manager es una aplicación de gestión para bandas musicales con arquitectu
    * **Repertorio (Songs)** y **Inventario (Inventory)**.
    * **Finanzas (Finances)**.
 4. **Interacción y Colaboración:** Comentarios (`CommentsSection.jsx`), Chat (`ChatSession.jsx`).
-5. **Características Especiales:** Afinado inteligente (`SmartTuner.jsx`), OCR para imágenes, importación de Excel.
+5. **Gestión de Permisos y Roles:** Sistema de promoción de miembros a Admin/Manager desde `Musicians.jsx` con sincronización en el nodo raíz de la banda.
+6. **Características Especiales:** Afinado inteligente (`SmartTuner.jsx`), OCR para imágenes, importación de Excel.

@@ -117,9 +117,9 @@ const Onboarding = () => {
                                 onChange={(e) => setFormData({ ...formData, roleInBand: e.target.value })}
                                 style={{ paddingLeft: '3rem', width: '100%', background: 'var(--bg-card)', color: 'white', border: '1px solid var(--glass-border)', padding: '0.8rem 1rem 0.8rem 3rem', borderRadius: '12px' }}
                             >
-                                <option value="manager">Manager</option>
-                                <option value="representante">Representante</option>
-                                <option value="musico">Músico</option>
+                                <option value="Manager">Manager</option>
+                                <option value="Musico">Músico</option>
+                                <option value="Invitado">Invitado</option>
                             </select>
                         </div>
                     </div>

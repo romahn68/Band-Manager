@@ -6,6 +6,21 @@ import CommentsSection from '../components/CommentsSection';
 import AttachmentUploader from '../components/AttachmentUploader';
 import { scanText } from '../services/ocrService';
 import { Capacitor } from '@capacitor/core';
+import { motion, AnimatePresence } from 'framer-motion';
+import styles from './Songs.module.css';
+
+const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+        opacity: 1,
+        transition: { staggerChildren: 0.1 }
+    }
+};
+
+const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0 }
+};
 
 const Songs = () => {
     const { activeBand } = useApp();
@@ -99,175 +114,165 @@ const Songs = () => {
     );
 
     return (
-        <div className="container">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
-                <h1 style={{ color: 'var(--accent-primary)', margin: 0 }}>Biblioteca de Canciones</h1>
+        <motion.div 
+            className="container"
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+        >
+            <div className={styles.header}>
+                <h1 className={styles.title}>Biblioteca de Canciones</h1>
                 <button
                     onClick={() => {
                         setShowForm(!showForm);
                         setEditingId(null);
                         setFormData({ titulo: '', tonalidad: '', letra: '', acordes: '' });
                     }}
-                    style={{ background: 'var(--accent-secondary)', color: 'white', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                    className={styles.newSongBtn}
                 >
                     {showForm ? <X size={20} /> : <Plus size={20} />} {showForm ? 'Cancelar' : 'Nueva Canción'}
                 </button>
             </div>
 
-            {showForm && (
-                <form className="glass" onSubmit={handleSubmit} style={{ padding: '2rem', marginBottom: '2rem' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                        <div>
-                            <label style={{ display: 'block', marginBottom: '0.5rem' }}>Título *</label>
-                            <input
-                                type="text"
-                                value={formData.titulo}
-                                onChange={e => setFormData({ ...formData, titulo: e.target.value })}
-                                required
-                            />
+            <AnimatePresence>
+                {showForm && (
+                    <motion.form 
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className={`glass ${styles.songForm}`} 
+                        onSubmit={handleSubmit}
+                    >
+                        <div className={styles.formGrid}>
+                            <div>
+                                <label className={styles.label}>Título *</label>
+                                <input
+                                    type="text"
+                                    value={formData.titulo}
+                                    onChange={e => setFormData({ ...formData, titulo: e.target.value })}
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <label className={styles.label}>Tonalidad *</label>
+                                <input
+                                    type="text"
+                                    placeholder="C, Am, F#m..."
+                                    value={formData.tonalidad}
+                                    onChange={e => setFormData({ ...formData, tonalidad: e.target.value })}
+                                    required
+                                />
+                            </div>
                         </div>
-                        <div>
-                            <label style={{ display: 'block', marginBottom: '0.5rem' }}>Tonalidad *</label>
-                            <input
-                                type="text"
-                                placeholder="C, Am, F#m..."
-                                value={formData.tonalidad}
-                                onChange={e => setFormData({ ...formData, tonalidad: e.target.value })}
-                                required
-                            />
-                        </div>
-                    </div>
-                    <div style={{ marginBottom: '1rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                            <label>Letra</label>
-                            {Capacitor.isNativePlatform() && (
-                                <button
-                                    type="button"
-                                    onClick={async () => {
-                                        try {
-                                            const text = await scanText();
-                                            if (text) {
-                                                setFormData(prev => ({
-                                                    ...prev,
-                                                    letra: prev.letra ? prev.letra + '\n\n' + text : text
-                                                }));
+                        <div className={styles.formGroup}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                                <label>Letra</label>
+                                {Capacitor.isNativePlatform() && (
+                                    <button
+                                        type="button"
+                                        onClick={async () => {
+                                            try {
+                                                const text = await scanText();
+                                                if (text) {
+                                                    setFormData(prev => ({
+                                                        ...prev,
+                                                        letra: prev.letra ? prev.letra + '\n\n' + text : text
+                                                    }));
+                                                }
+                                            } catch (e) {
+                                                console.error(e);
+                                                alert("No se pudo escanear: " + e.message);
                                             }
-                                        } catch (e) {
-                                            console.error(e);
-                                            alert("No se pudo escanear: " + e.message);
-                                        }
-                                    }}
-                                    style={{
-                                        padding: '0.3rem 0.6rem',
-                                        fontSize: '0.8rem',
-                                        background: 'rgba(16, 185, 129, 0.2)',
-                                        color: '#10b981',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '0.4rem'
-                                    }}
-                                >
-                                    <Camera size={14} /> Escanear
-                                </button>
-                            )}
+                                        }}
+                                        className={styles.ocrBtn}
+                                    >
+                                        <Camera size={14} /> Escanear
+                                    </button>
+                                )}
+                            </div>
+                            <textarea
+                                rows="5"
+                                value={formData.letra}
+                                onChange={e => setFormData({ ...formData, letra: e.target.value })}
+                            />
                         </div>
-                        <textarea
-                            rows="5"
-                            value={formData.letra}
-                            onChange={e => setFormData({ ...formData, letra: e.target.value })}
-                        />
-                    </div>
-                    <div style={{ marginBottom: '1.5rem' }}>
-                        <label style={{ display: 'block', marginBottom: '0.5rem' }}>Acordes / Notas</label>
-                        <textarea
-                            rows="3"
-                            value={formData.acordes}
-                            onChange={e => setFormData({ ...formData, acordes: e.target.value })}
-                        />
-                    </div>
-                    <button type="submit" style={{ background: 'var(--accent-primary)', color: 'white', width: '100%', fontSize: '1.1rem' }}>
-                        {editingId ? 'Guardar Cambios' : 'Guardar Canción'}
-                    </button>
-                </form>
-            )}
+                        <div className={styles.textareaGroup}>
+                            <label className={styles.label}>Acordes / Notas</label>
+                            <textarea
+                                rows="3"
+                                value={formData.acordes}
+                                onChange={e => setFormData({ ...formData, acordes: e.target.value })}
+                            />
+                        </div>
+                        <button type="submit" className={styles.submitBtn}>
+                            {editingId ? 'Guardar Cambios' : 'Guardar Canción'}
+                        </button>
+                    </motion.form>
+                )}
+            </AnimatePresence>
 
             <div className={`songs-layout ${selectedSong ? 'has-selected' : ''}`}>
                 <div>
-                    <div className="glass" style={{ padding: '0.5rem 1rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div className={`glass ${styles.searchBar}`}>
                         <Search size={20} color="var(--text-secondary)" />
                         <input
                             type="text"
                             placeholder="Buscar por título o tonalidad..."
-                            style={{ background: 'transparent', border: 'none', boxShadow: 'none' }}
+                            className={styles.searchInput}
                             value={search}
                             onChange={e => setSearch(e.target.value)}
                         />
                     </div>
 
                     {loading && songs.length === 0 ? (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
+                        <div className={styles.songsGrid}>
                             {[1, 2, 3, 4, 5, 6].map(i => (
                                 <div key={i} className="glass skeleton" style={{ padding: '1.5rem', height: '140px' }} />
                             ))}
                         </div>
                     ) : (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
+                        <motion.div className={styles.songsGrid} layout>
                             {filteredSongs.map(song => (
-                                <div
+                                <motion.div
                                     key={song.id}
-                                    className="glass"
+                                    variants={itemVariants}
+                                    layout
+                                    className={`glass ${styles.songCard} ${selectedSong?.id === song.id ? styles.songCardSelected : ''}`}
                                     onClick={() => setSelectedSong(selectedSong?.id === song.id ? null : song)}
-                                    style={{
-                                        padding: '1.5rem',
-                                        position: 'relative',
-                                        cursor: 'pointer',
-                                        border: selectedSong?.id === song.id ? '2px solid var(--accent-primary)' : '1px solid var(--glass-border)'
-                                    }}
                                 >
-                                    <div style={{ position: 'absolute', top: '1rem', right: '1rem', display: 'flex', gap: '0.5rem' }}>
+                                    <div className={styles.cardActions}>
                                         <button
                                             onClick={(e) => { e.stopPropagation(); startEdit(song); }}
-                                            style={{ background: 'rgba(139, 92, 246, 0.1)', color: 'var(--accent-primary)', padding: '0.4rem' }}
+                                            className={`${styles.actionBtn} ${styles.editBtn}`}
                                         >
                                             <Edit2 size={16} />
                                         </button>
                                         <button
                                             onClick={(e) => { e.stopPropagation(); handleDelete(song.id); }}
-                                            style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', padding: '0.4rem' }}
+                                            className={`${styles.actionBtn} ${styles.deleteBtn}`}
                                         >
                                             <Trash2 size={16} />
                                         </button>
                                     </div>
-                                    <h3 style={{ margin: '0 0 0.25rem 0', color: 'var(--accent-secondary)' }}>{song.titulo}</h3>
-                                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                                        <span style={{
-                                            background: 'rgba(255,255,255,0.05)',
-                                            padding: '0.2rem 0.6rem',
-                                            borderRadius: '20px',
-                                            fontSize: '0.8rem',
-                                            border: '1px solid var(--glass-border)'
-                                        }}>
+                                    <h3 className={styles.songTitle}>{song.titulo}</h3>
+                                    <div className={styles.tagGroup}>
+                                        <span className={styles.tag}>
                                             {song.tonalidad}
                                         </span>
                                         {selectedSong?.id === song.id && <MessageSquare size={14} color="var(--accent-primary)" />}
                                     </div>
-                                </div>
+                                </motion.div>
                             ))}
-                        </div>
+                        </motion.div>
                     )}
 
                     {/* Pagination Button */}
                     {hasMore && !search && (
-                        <div style={{ textAlign: 'center', marginTop: '2rem' }}>
+                        <div className={styles.paginationContainer}>
                             <button
                                 onClick={() => loadSongs(false)}
                                 disabled={loading}
-                                style={{
-                                    background: 'rgba(255,255,255,0.05)',
-                                    color: 'var(--text-secondary)',
-                                    border: '1px solid var(--glass-border)',
-                                    padding: '0.75rem 2rem'
-                                }}
+                                className={styles.loadMoreBtn}
                             >
                                 {loading ? 'Cargando...' : 'Cargar más canciones'}
                             </button>
@@ -275,63 +280,62 @@ const Songs = () => {
                     )}
 
                     {search && filteredSongs.length === 0 && (
-                        <p style={{ textAlign: 'center', marginTop: '2rem', color: 'var(--text-secondary)' }}>No se encontraron canciones que coincidan con la búsqueda.</p>
+                        <p className={styles.emptySearch}>No se encontraron canciones que coincidan con la búsqueda.</p>
                     )}
                 </div>
 
-                {selectedSong && (
-                    <div className="no-print">
-                        <div className="song-detail-panel">
-                            <div className="glass" style={{ padding: '1.5rem', marginBottom: '1rem' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                                    <h2 style={{ fontSize: '1.2rem', margin: 0 }}>{selectedSong.titulo}</h2>
-                                    <button onClick={() => setSelectedSong(null)} style={{ background: 'none', padding: '0.2rem' }}><X size={18} /></button>
-                                </div>
-                                <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>
-                                    {selectedSong.letra || 'Sin letra registrada.'}
-                                </div>
-                                {selectedSong.acordes && (
-                                    <div style={{ marginTop: '1rem', borderTop: '1px solid var(--glass-border)', paddingTop: '1rem' }}>
-                                        <div style={{ fontSize: '0.8rem', color: 'var(--accent-secondary)', marginBottom: '0.5rem' }}>Acordes/Tab:</div>
-                                        <pre style={{
-                                            fontFamily: 'monospace',
-                                            fontSize: '0.85rem',
-                                            background: 'rgba(0,0,0,0.3)',
-                                            padding: '0.75rem',
-                                            borderRadius: '8px',
-                                            overflowX: 'auto',
-                                            color: '#10b981'
-                                        }}>
-                                            {selectedSong.acordes}
-                                        </pre>
+                <AnimatePresence>
+                    {selectedSong && (
+                        <motion.div 
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: 20 }}
+                            className="no-print"
+                        >
+                            <div className="song-detail-panel">
+                                <div className={`glass ${styles.detailCard}`}>
+                                    <div className={styles.detailHeader}>
+                                        <h2 className={styles.detailTitle}>{selectedSong.titulo}</h2>
+                                        <button onClick={() => setSelectedSong(null)} style={{ background: 'none', padding: '0.2rem' }}><X size={18} /></button>
                                     </div>
-                                )}
+                                    <div className={styles.detailContent}>
+                                        {selectedSong.letra || 'Sin letra registrada.'}
+                                    </div>
+                                    {selectedSong.acordes && (
+                                        <div className={styles.chordsContainer}>
+                                            <div className={styles.chordsLabel}>Acordes/Tab:</div>
+                                            <pre className={styles.chordsPre}>
+                                                {selectedSong.acordes}
+                                            </pre>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <AttachmentUploader
+                                    bandId={activeBand.id}
+                                    entityType="songs"
+                                    entityId={selectedSong.id}
+                                    currentAttachments={selectedSong.attachments || []}
+                                    onUploadComplete={async (newAttachments) => {
+                                        await updateSong(activeBand.id, selectedSong.id, { attachments: newAttachments });
+                                        setSelectedSong(prev => ({ ...prev, attachments: newAttachments }));
+                                        loadSongs(false); // Recarga silenciosa
+                                    }}
+                                />
+
+                                <CommentsSection
+                                    bandId={activeBand.id}
+                                    parentId={selectedSong.id}
+                                    parentType="song"
+                                />
                             </div>
-
-                            {/* Area para Adjuntos */}
-                            <AttachmentUploader
-                                bandId={activeBand.id}
-                                entityType="songs"
-                                entityId={selectedSong.id}
-                                currentAttachments={selectedSong.attachments || []}
-                                onUploadComplete={async (newAttachments) => {
-                                    await updateSong(activeBand.id, selectedSong.id, { attachments: newAttachments });
-                                    setSelectedSong(prev => ({ ...prev, attachments: newAttachments }));
-                                    loadSongs(false); // Recarga silenciosa
-                                }}
-                            />
-
-                            <CommentsSection
-                                bandId={activeBand.id}
-                                parentId={selectedSong.id}
-                                parentType="song"
-                            />
-                        </div>
-                    </div>
-                )}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
-        </div>
+        </motion.div>
     );
 };
 
 export default Songs;
+

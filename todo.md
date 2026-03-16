@@ -1,12 +1,15 @@
 # Plan de Acción y Revisión del Proyecto (Director de Orquesta)
 
-## Estado Actual (Análisis Preliminar)
+## Estado Actual (Post-Estabilización) [x]
 
-Hemos detectado varios puntos de deuda técnica importantes en `deuda_tecnica.md` relacionados con la consistencia de datos, falta de paginación y redundancia de identificadores.
+- [x] **Análisis e Identificación**: Deuda técnica mapeada y documentada. (@arquitecto)
+- [x] **Consistencia de IDs**: Refactorización de `firestoreService.js` para usar IDs de Firestore auto-generados y batches atómicos. (@backend)
+- [x] **Sincronización de Perfiles**: Los perfiles de músicos ahora se cargan dinámicamente desde el nodo central `/users`. (@backend)
+- [x] **Resiliencia**: Manejo de errores (`try/catch`) implementado en servicios críticos. (@guardian)
+- [x] **Gestión de Permisos**: Sistema de roles (Admin/Manager/Miembro) funcional en UI y sincronizado con Firestore. (@frontend/@backend)
 
-## Delegación de Tareas
+## Próximos Pasos (Opcional)
 
-**1. @arquitecto.md**: Revisa `deuda_tecnica.md` y estructura un nuevo modelo de datos unificado. Necesitamos definir cómo se manejarán los perfiles globales vs perfiles de banda (`users` vs `musicians`) y estandarizar los identificadores. Crea un `schema.json` preliminar con esta propuesta.
-**2. @backend.md**: Analiza `src/services/firestoreService.js`. Prepárate para implementar las lecturas paginadas y escribir transacciones (o batches) para operaciones críticas como `createBand`.
-**3. @frontend.md**: Revisa los componentes actuales (ej. `Dashboard`, `Rehearsals`). Prepárate para refactorizar estilos en línea, verificar que las listas paginadas incluyan feedback visual, y asegura que todas las entradas tengan animaciones usando `framer-motion`.
-**4. @guardian.md**: Inicia la auditoría de seguridad. Busca logs innecesarios, valida que no haya _API keys_ en el frontend y cerciórate de que hay un manejo de errores robusto (`try/catch`) en todas las peticiones asíncronas para evitar pantallas blancas.
+1. **Ejecución de Migración**: Utilizar `scripts/migrateIds.js` para limpiar datos históricos una vez se tenga el `serviceAccountKey.json`.
+2. **Mejoras de UX**: Implementar "Skeleton Loaders" en las listas paginadas para una sensación aún más fluida.
+3. **Internacionalización**: Preparar el sistema para multi-idioma si Alan lo requiere en el futuro.
