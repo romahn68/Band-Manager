@@ -1,0 +1,162 @@
+.viewerContainer {
+    padding: 1.5rem;
+    margin-top: 1rem;
+    border-radius: var(--border-radius-lg);
+}
+
+.toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.songTitle {
+    font-size: 1.5rem;
+    color: var(--text-primary);
+    margin: 0;
+    font-weight: 700;
+}
+
+.controls {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.instrumentSelect {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    padding: 0.5rem 1rem;
+    border-radius: var(--border-radius-md);
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 500;
+    transition: var(--transition);
+}
+
+.instrumentSelect:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 2px rgba(118, 56, 250, 0.2);
+}
+
+.sheetContent {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 1.1rem;
+    line-height: 1.5;
+    color: var(--text-primary);
+}
+
+.line {
+    display: flex;
+    flex-wrap: wrap;
+    margin-bottom: 0.8rem;
+}
+
+.emptyLine {
+    height: 1.5rem;
+}
+
+.chordLyricPair {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    margin-right: -1px; /* Para que las letras fluyan mejor */
+}
+
+.chordWrapper {
+    position: relative;
+    cursor: pointer;
+    color: var(--accent-primary);
+    font-weight: bold;
+    font-family: 'Inter', sans-serif;
+    margin-bottom: 0.2rem;
+    display: inline-block;
+}
+
+.chordText {
+    padding: 0.1rem 0.3rem;
+    border-radius: 4px;
+    background-color: rgba(118, 56, 250, 0.05);
+    transition: background-color 0.2s;
+}
+
+.chordWrapper:hover .chordText {
+    background-color: rgba(118, 56, 250, 0.15);
+}
+
+.lyricText {
+    white-space: pre;
+    min-height: 1.5em; /* Ensure empty lyrics still take space if there is a chord */
+}
+
+.tag {
+    color: var(--warning-color);
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 0.9em;
+    padding: 0.5rem 0;
+    width: 100%;
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.tagName {
+    opacity: 0.7;
+}
+
+/* Tooltip & Diagramas */
+.tooltipContainer {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-bottom: 8px;
+    z-index: 100;
+    pointer-events: none; /* Let hover pass through */
+}
+
+.diagramTooltip {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-md);
+    box-shadow: var(--shadow-xl);
+    padding: 10px;
+    width: 140px;
+    display: flex;
+    justify-content: center;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+.error {
+    color: var(--danger-color);
+    padding: 1rem;
+    background: rgba(255, 59, 48, 0.1);
+    border-radius: var(--border-radius-md);
+    border-left: 4px solid var(--danger-color);
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+    .sheetContent {
+        font-size: 1rem;
+    }
+    .toolbar {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+    .controls {
+        width: 100%;
+        justify-content: space-between;
+    }
+}

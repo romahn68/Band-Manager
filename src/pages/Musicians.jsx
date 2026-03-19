@@ -5,7 +5,7 @@ import { Users, Copy, Trash2, Loader2, ShieldCheck } from 'lucide-react';
 import styles from './Musicians.module.css';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePermissions } from '../hooks/usePermissions';
-import { getMusiciansPaginated, deleteMusician, updateMemberRole, createInvite, getMusiciansCount, updateMusician } from '../services/firestoreService';
+import { getMusiciansPaginated, deleteMusician, updateMemberRole, getMusiciansCount, updateMusician, addMusician } from '../services/firestoreService';
 import { Share2, MessageCircle } from 'lucide-react';
 
 const Musicians = () => {
@@ -17,15 +17,14 @@ const Musicians = () => {
     const [lastVisible, setLastVisible] = useState(null);
     const [hasMore, setHasMore] = useState(false);
     const [updatingId, setUpdatingId] = useState(null);
-    const [inviteData, setInviteData] = useState({
+    const [manualData, setManualData] = useState({
         nombre: '',
-        apellido: '',
-        correo: '',
-        perfil: 'Musico',
-        permisos: ROLES.VISOR
+        instrumento: '',
+        profile: 'Musico',
+        role: ROLES.VISOR
     });
-    const [generatedLink, setGeneratedLink] = useState('');
-    const [isGenerating, setIsGenerating] = useState(false);
+    const generatedLink = activeBand ? `${window.location.origin}/unirse/banda/${activeBand.inviteCode}` : '';
+    const [isAdding, setIsAdding] = useState(false);
 
     const loadInitial = React.useCallback(async () => {
         if (!activeBand) return;
@@ -88,22 +87,27 @@ const Musicians = () => {
         }
     };
 
-    const handleGenerateLink = async (e) => {
+    const handleAddManual = async (e) => {
         e.preventDefault();
         // Security Guard
-        if (!canInvite) return;
-        if (!activeBand || !inviteData.correo) return;
+        if (!canManageMembers) return;
+        if (!activeBand || !manualData.nombre) return;
 
-        setIsGenerating(true);
+        setIsAdding(true);
         try {
-            await createInvite(activeBand.id, inviteData);
-            const joinLink = `${window.location.origin}/unirse/banda/${activeBand.inviteCode}?email=${encodeURIComponent(inviteData.correo)}`;
-            setGeneratedLink(joinLink);
+            await addMusician(activeBand.id, {
+                nombre: manualData.nombre,
+                instrument: { nombre: manualData.instrumento },
+                profile: manualData.profile,
+                role: manualData.role
+            });
+            setManualData({ nombre: '', instrumento: '', profile: 'Musico', role: ROLES.VISOR });
+            loadInitial();
         } catch (error) {
-            console.error("Error generating invite:", error);
-            alert("No se pudo generar la invitación.");
+            console.error("Error adding musician:", error);
+            alert("No se pudo agregar al músico.");
         } finally {
-            setIsGenerating(false);
+            setIsAdding(false);
         }
     };
 
@@ -116,7 +120,7 @@ const Musicians = () => {
     const handleShareWA = () => {
         if (!generatedLink) return;
         // Adjusted sharing text for clarity and professionalism
-        const text = `🎸 *Invitación a Band Manager*\n\nHola ${inviteData.nombre}, te invito a unirte a la banda *${activeBand.nombre}*.\n\nUsa este enlace personalizado para registrarte y acceder al panel:\n${generatedLink}`;
+        const text = `🎸 *Invitación a Band Manager*\n\n¡Hola! Te invito a unirte a nuestra banda *${activeBand.nombre}*.\n\nUsa este enlace para registrarte y unirte al panel:\n${generatedLink}`;
         const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
         window.open(url, '_blank');
     };
@@ -233,31 +237,30 @@ const Musicians = () => {
                 </table>
             </div>
 
-            {canInvite && (
+            {canManageMembers && (
                 <section className={styles.inviteSectionFull}>
                     <div className={styles.inviteContent}>
-                        <h2 className={styles.inviteTitle}>Invitar músico / personal</h2>
-                        <p className={styles.inviteSubtitle}>Genera liga de acceso personalizada para tu equipo.</p>
+                        <h2 className={styles.inviteTitle}>Agregar Músico Manualmente</h2>
+                        <p className={styles.inviteSubtitle}>Añade un músico a la lista (sin acceso a la app).</p>
                         
-                        <form onSubmit={handleGenerateLink} className={styles.inviteGrid}>
+                        <form onSubmit={handleAddManual} className={styles.inviteGrid}>
                             <div className={styles.inputGroup}>
                                 <label className={styles.label}>Nombre</label>
                                 <input 
                                     className={styles.input}
                                     placeholder="Nombre"
-                                    value={inviteData.nombre}
-                                    onChange={e => setInviteData({...inviteData, nombre: e.target.value})}
+                                    value={manualData.nombre}
+                                    onChange={e => setManualData({...manualData, nombre: e.target.value})}
                                     required
                                 />
                             </div>
                             <div className={styles.inputGroup}>
-                                <label className={styles.label}>Correo (Para Login)</label>
+                                <label className={styles.label}>Instrumento</label>
                                 <input 
                                     className={styles.input}
-                                    type="email"
-                                    placeholder="email@ejemplo.com"
-                                    value={inviteData.correo}
-                                    onChange={e => setInviteData({...inviteData, correo: e.target.value.toLowerCase()})}
+                                    placeholder="Ej. Guitarra"
+                                    value={manualData.instrumento}
+                                    onChange={e => setManualData({...manualData, instrumento: e.target.value})}
                                     required
                                 />
                             </div>
@@ -265,20 +268,21 @@ const Musicians = () => {
                                 <label className={styles.label}>Rol en Banda</label>
                                 <select 
                                     className={styles.select}
-                                    value={inviteData.perfil}
-                                    onChange={e => setInviteData({...inviteData, perfil: e.target.value})}
+                                    value={manualData.profile}
+                                    onChange={e => setManualData({...manualData, profile: e.target.value})}
                                 >
                                     <option value="Musico">Músico</option>
+                                    <option value="Director">Director</option>
                                     <option value="Manager">Manager</option>
                                     <option value="Staff">Staff</option>
                                 </select>
                             </div>
                             <div className={styles.inputGroup}>
-                                <label className={styles.label}>Permisos App</label>
+                                <label className={styles.label}>Permisos App (Si se une luego)</label>
                                 <select 
                                     className={styles.select}
-                                    value={inviteData.permisos}
-                                    onChange={e => setInviteData({...inviteData, permisos: e.target.value})}
+                                    value={manualData.role}
+                                    onChange={e => setManualData({...manualData, role: e.target.value})}
                                 >
                                     <option value={ROLES.ADMIN}>{ROLES.ADMIN}</option>
                                     <option value={ROLES.EDITOR}>{ROLES.EDITOR}</option>
@@ -286,34 +290,39 @@ const Musicians = () => {
                                 </select>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-                                <button type="submit" className={styles.button} disabled={isGenerating}>
-                                    {isGenerating ? <Loader2 className="animate-spin" /> : 'Generar Acceso'}
+                                <button type="submit" className={styles.button} disabled={isAdding}>
+                                    {isAdding ? <Loader2 className="animate-spin" /> : 'Agregar Músico'}
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </section>
+            )}
 
-                        <AnimatePresence>
-                            {generatedLink && (
-                                <motion.div 
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    className={styles.linkBox}
-                                >
-                                    <div>
-                                        <p className={styles.label} style={{ marginBottom: '0.2rem' }}>Liga personalizada lista:</p>
-                                        <code className={styles.linkCode}>{generatedLink}</code>
-                                    </div>
-                                    <div style={{ display: 'flex', gap: '0.75rem' }}>
-                                        <button onClick={handleCopyLink} className={styles.copyButton}>
-                                            <Copy size={16} /> Copiar
-                                        </button>
-                                        <button onClick={handleShareWA} className={`${styles.copyButton} ${styles.waButton}`}>
-                                            <Share2 size={16} /> WhatsApp
-                                        </button>
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
+            {canInvite && (
+                <section className={styles.inviteSectionFull} style={{ marginTop: '1rem' }}>
+                    <div className={styles.inviteContent}>
+                        <h2 className={styles.inviteTitle}>Enlace de Invitación</h2>
+                        <p className={styles.inviteSubtitle}>Comparte este enlace para que otros miembros se unan a la banda con su propia cuenta.</p>
+                        
+                        <motion.div 
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className={styles.linkBox}
+                            style={{ marginTop: '1rem' }}
+                        >
+                            <div style={{ wordBreak: 'break-all' }}>
+                                <code className={styles.linkCode}>{generatedLink}</code>
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.75rem' }}>
+                                <button onClick={handleCopyLink} className={styles.copyButton}>
+                                    <Copy size={16} /> Copiar
+                                </button>
+                                <button onClick={handleShareWA} className={`${styles.copyButton} ${styles.waButton}`}>
+                                    <Share2 size={16} /> WhatsApp
+                                </button>
+                            </div>
+                        </motion.div>
                     </div>
                 </section>
             )}

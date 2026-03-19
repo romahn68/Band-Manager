@@ -6,6 +6,7 @@ import CommentsSection from '../components/CommentsSection';
 import AttachmentUploader from '../components/AttachmentUploader';
 import { scanText } from '../services/ocrService';
 import { Capacitor } from '@capacitor/core';
+import ChordProViewer from '../components/ChordProViewer';
 import { motion, AnimatePresence } from 'framer-motion';
 import styles from './Songs.module.css';
 
@@ -26,7 +27,7 @@ const Songs = () => {
     const { activeBand } = useApp();
     const [songs, setSongs] = useState([]);
     const [showForm, setShowForm] = useState(false);
-    const [formData, setFormData] = useState({ titulo: '', tonalidad: '', letra: '', acordes: '' });
+    const [formData, setFormData] = useState({ titulo: '', tonalidad: '', letra: '', acordes: '', chordProContent: '' });
     const [editingId, setEditingId] = useState(null);
     const [search, setSearch] = useState('');
     const [selectedSong, setSelectedSong] = useState(null);
@@ -85,7 +86,7 @@ const Songs = () => {
             } else {
                 await addSong(activeBand.id, formData);
             }
-            setFormData({ titulo: '', tonalidad: '', letra: '', acordes: '' });
+            setFormData({ titulo: '', tonalidad: '', letra: '', acordes: '', chordProContent: '' });
             setShowForm(false);
             setEditingId(null);
             loadSongs();
@@ -104,7 +105,7 @@ const Songs = () => {
 
     const startEdit = (song) => {
         setEditingId(song.id);
-        setFormData({ titulo: song.titulo, tonalidad: song.tonalidad, letra: song.letra, acordes: song.acordes });
+        setFormData({ titulo: song.titulo, tonalidad: song.tonalidad, letra: song.letra, acordes: song.acordes, chordProContent: song.chordProContent || '' });
         setShowForm(true);
     };
 
@@ -126,7 +127,7 @@ const Songs = () => {
                     onClick={() => {
                         setShowForm(!showForm);
                         setEditingId(null);
-                        setFormData({ titulo: '', tonalidad: '', letra: '', acordes: '' });
+                        setFormData({ titulo: '', tonalidad: '', letra: '', acordes: '', chordProContent: '' });
                     }}
                     className={styles.newSongBtn}
                 >
@@ -197,11 +198,23 @@ const Songs = () => {
                             />
                         </div>
                         <div className={styles.textareaGroup}>
-                            <label className={styles.label}>Acordes / Notas</label>
+                            <label className={styles.label}>Acordes / Notas (Anotaciones simples)</label>
                             <textarea
                                 rows="3"
                                 value={formData.acordes}
                                 onChange={e => setFormData({ ...formData, acordes: e.target.value })}
+                            />
+                        </div>
+                        <div className={styles.textareaGroup} style={{marginTop: '1rem'}}>
+                            <label className={styles.label}>Formato Avanzado (ChordPro)</label>
+                            <p style={{fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem'}}>
+                                Ej: [G] Cielito [C] lindo vienen [D7] bajando.
+                            </p>
+                            <textarea
+                                rows="5"
+                                placeholder="{title: Cancion}&#10;[C]Hola mundo"
+                                value={formData.chordProContent}
+                                onChange={e => setFormData({ ...formData, chordProContent: e.target.value })}
                             />
                         </div>
                         <button type="submit" className={styles.submitBtn}>
@@ -298,16 +311,22 @@ const Songs = () => {
                                         <h2 className={styles.detailTitle}>{selectedSong.titulo}</h2>
                                         <button onClick={() => setSelectedSong(null)} style={{ background: 'none', padding: '0.2rem' }}><X size={18} /></button>
                                     </div>
-                                    <div className={styles.detailContent}>
-                                        {selectedSong.letra || 'Sin letra registrada.'}
-                                    </div>
-                                    {selectedSong.acordes && (
-                                        <div className={styles.chordsContainer}>
-                                            <div className={styles.chordsLabel}>Acordes/Tab:</div>
-                                            <pre className={styles.chordsPre}>
-                                                {selectedSong.acordes}
-                                            </pre>
-                                        </div>
+                                    {selectedSong.chordProContent ? (
+                                        <ChordProViewer content={selectedSong.chordProContent} />
+                                    ) : (
+                                        <>
+                                            <div className={styles.detailContent}>
+                                                {selectedSong.letra || 'Sin letra registrada.'}
+                                            </div>
+                                            {selectedSong.acordes && (
+                                                <div className={styles.chordsContainer}>
+                                                    <div className={styles.chordsLabel}>Acordes/Tab:</div>
+                                                    <pre className={styles.chordsPre}>
+                                                        {selectedSong.acordes}
+                                                    </pre>
+                                                </div>
+                                            )}
+                                        </>
                                     )}
                                 </div>
 

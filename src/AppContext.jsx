@@ -15,6 +15,7 @@ export const AppProvider = ({ children }) => {
     const [userRole, setUserRole] = useState(null);
     const [loading, setLoading] = useState(true);
     const [ghostMode, setGhostMode] = useState(false);
+    const [error, setError] = useState(null);
 
     // Fetch Role
     useEffect(() => {
@@ -36,40 +37,7 @@ export const AppProvider = ({ children }) => {
                     if (memberDoc.exists()) {
                         setUserRole(normalizeRole(memberDoc.data().role));
                     } else {
-                        // Fallback: search in collection if not found by ID (legacy support)
-                        const q = query(
-                            collection(db, "bands", activeBand.id, "musicians"),
-                            where("uid", "==", currentUser.uid)
-                        );
-                        const querySnapshot = await getDocs(q);
-
-                        if (!querySnapshot.empty) {
-                            const legacyDoc = querySnapshot.docs[0];
-                            const legacyData = legacyDoc.data();
-                            const legacyId = legacyDoc.id;
-
-                            console.log("Migrating legacy member record to UID key...", legacyId);
-
-                            // 1. Create new doc with UID key
-                            const newRef = doc(db, "bands", activeBand.id, "musicians", currentUser.uid);
-                            await setDoc(newRef, {
-                                ...legacyData,
-                                uid: currentUser.uid,
-                                musician_id: currentUser.uid
-                            });
-
-                            // 2. Delete old doc
-                            try {
-                                await deleteDoc(doc(db, "bands", activeBand.id, "musicians", legacyId));
-                                console.log("Migration successful.");
-                            } catch (e) {
-                                console.warn("Could not delete legacy doc (minor):", e);
-                            }
-
-                            setUserRole(normalizeRole(legacyData.role));
-                        } else {
-                            setUserRole('Visor'); // Standardized default
-                        }
+                        setUserRole('Visor'); // Standardized default
                     }
                 } catch (error) {
                     console.error("Error fetching role:", error);
@@ -233,7 +201,7 @@ export const AppProvider = ({ children }) => {
             updateBandName,
             createNewBand,
             loading,
-            error: null
+            error
         }}>
             {children}
         </AppContext.Provider>

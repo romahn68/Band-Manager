@@ -215,6 +215,12 @@ const MainLayout = ({ children }) => {
   );
 };
 
+const SettingsRoute = () => {
+  const permissions = usePermissions();
+  if (!permissions.canAccessSettings) return <Navigate to="/dashboard" replace />;
+  return <Settings />;
+};
+
 function App() {
   const [maintenanceMode, setMaintenanceMode] = React.useState(false);
   const [checkingMaintenance, setCheckingMaintenance] = React.useState(true);
@@ -265,7 +271,7 @@ function App() {
                 <Route path="/configuracion" element={
                   <ProtectedRoute>
                     <MainLayout>
-                      {usePermissions().canAccessSettings ? <Settings /> : <Navigate to="/dashboard" replace />}
+                      <SettingsRoute />
                     </MainLayout>
                   </ProtectedRoute>
                 } />
@@ -281,9 +287,8 @@ function App() {
   );
 }
 
-// Special Guard that checks for Maintenance Mode
 const MaintenanceGuard = ({ isMaintenance, children }) => {
-  const { currentUser, loading } = useAuth();
+  const { currentUser, userProfile, loading } = useAuth();
 
   if (loading) return <LoadingScreen message="Sincronizando..." />;
 
