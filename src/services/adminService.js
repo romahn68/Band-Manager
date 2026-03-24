@@ -111,20 +111,48 @@ export const getBandDetails = async (bandId) => {
  */
 export const deleteBandCascade = async (bandId) => {
     try {
-        const batch = writeBatch(db);
-        
+        let currentBatch = writeBatch(db);
+        let operationCount = 0;
+        let batchesCommitted = 0;
+
+        const commitCurrentBatch = async () => {
+            if (operationCount > 0) {
+                await currentBatch.commit();
+                batchesCommitted++;
+                currentBatch = writeBatch(db); // new batch
+                operationCount = 0;
+            }
+        };
+
+        const addToBatch = async (docRef, operation = 'delete', data = null) => {
+            if (operationCount >= 490) { // Safety margin before 500 limit
+                await commitCurrentBatch();
+            }
+            if (operation === 'delete') {
+                currentBatch.delete(docRef);
+            } else if (operation === 'set') {
+                currentBatch.set(docRef, data);
+            }
+            operationCount++;
+        };
+
         // 1. Delete main document
-        batch.delete(doc(db, "bands", bandId));
+        await addToBatch(doc(db, "bands", bandId), 'delete');
         
-        // 2. Delete known subcollections (this requires fetching docs first)
-        const subcollections = ['songs', 'gigs', 'rehearsals', 'gear', 'musicians', 'finances', 'comments'];
+        // 2. Delete known subcollections
+        const subcollections = ['songs', 'gigs', 'rehearsals', 'gear', 'musicians', 'finances', 'comments', 'messages', 'invitations'];
         
         for (const sub of subcollections) {
             const snap = await getDocs(collection(db, "bands", bandId, sub));
-            snap.docs.forEach(d => batch.delete(d.ref));
+            for (const d of snap.docs) {
+                await addToBatch(d.ref, 'delete');
+            }
         }
 
-        await batch.commit();
+        // Commit remaining
+        await commitCurrentBatch();
+        
+        console.log(`Cascade delete finished for band ${bandId}. Batches: ${batchesCommitted}`);
         return true;
     } catch (error) {
         console.error("Error in cascade delete:", error);

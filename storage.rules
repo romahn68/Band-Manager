@@ -13,11 +13,17 @@ service firebase.storage {
 
     // Regla base para proteger todos los archivos subidos al sistema
     match /bands/{bandId}/{allPaths=**} {
-      // Las lecturas son permitidas a cualquier usuario que tenga el enlace
-      allow read: if true; 
+      // Función auxiliar para verificar membresía desde Storage
+      function isMember(bandId) {
+        return request.auth != null && 
+          firestore.exists(/databases/(default)/documents/bands/$(bandId)/musicians/$(request.auth.uid));
+      }
+
+      // Las lecturas son permitidas SOLO a miembros de la banda (o SuperAdmins vía email)
+      allow read: if isMember(bandId) || (request.auth != null && request.auth.token.email == 'josimaromahn@gmail.com'); 
       
-      // La subida y escritura es estricta: Auth + Max 2MB + Solo JPG y PDF
-      allow write: if isAuthenticated() 
+      // La subida y escritura es estricta: Solo miembros + Max 2MB + Solo JPG y PDF
+      allow write: if isMember(bandId)
                    && request.resource.size < 2 * 1024 * 1024 // 2 Megabytes
                    && request.resource.contentType.matches('application/pdf|image/jpeg|image/jpg');
     }

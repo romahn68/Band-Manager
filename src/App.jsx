@@ -85,6 +85,8 @@ class ErrorBoundary extends React.Component {
   }
 }
 
+
+
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
   const { currentUser, loading: authLoading } = useAuth();

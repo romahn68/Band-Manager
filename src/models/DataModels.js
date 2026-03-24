@@ -52,11 +52,14 @@ export const createMusicianModel = (data = {}) => ({
 export const createSongModel = (data = {}) => ({
   customId: sanitizeString(data.customId) || `SG-${Math.floor(1000 + Math.random() * 9000)}`,
   titulo: sanitizeString(data.titulo, 150),
-  letra: sanitizeString(data.letra, 5000), // Límite generoso pero seguro
-  acordes: sanitizeString(data.acordes, 5000), // Mantenido para retrocompatibilidad
-  chordProContent: sanitizeString(data.chordProContent, 10000), // Nuevo formato avanzado
+  letraCruda: sanitizeString(data.letraCruda || data.letra, 5000), // Alineado con schema.json
+  tonalidad: sanitizeString(data.tonalidad || data.tono || data.tono_song, 15), // Alineado con schema.json
+  chordProContent: sanitizeString(data.chordProContent, 10000),
   hasChords: Boolean(data.hasChords || data.chordProContent), 
-  tono: sanitizeString(data.tono || data.tonalidad, 10), // Fix para capturar form data
+  // Mantener para compatibilidad con código existente
+  letra: sanitizeString(data.letra || data.letraCruda, 5000),
+  tono: sanitizeString(data.tono || data.tonalidad, 10),
+  acordes: sanitizeString(data.acordes, 5000),
   duracion: Number(data.duracion) || 0,
   createdAt: data.createdAt || serverTimestamp(),
   updatedAt: serverTimestamp(),

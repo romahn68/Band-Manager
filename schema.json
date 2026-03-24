@@ -39,8 +39,13 @@
                 "{songId}": {
                     "customId": "string (optional)",
                     "titulo": "string",
+                    "tonalidad": "string",
+                    "letraCruda": "string (Lyrics with Chords above - UltimateGuitar style)",
+                    "acordesExtra": "string (Optional raw tabs or notes)",
+                    "old_chordProContent": "string (Legacy, kept for backwards compatibility)",
+                    "old_letra": "string (Legacy)",
+                    "old_acordes": "string (Legacy)",
                     "duracion": "number (seconds)",
-                    "tono": "string",
                     "createdAt": "timestamp",
                     "updatedAt": "timestamp",
                     "bandId": "string"

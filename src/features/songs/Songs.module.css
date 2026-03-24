@@ -1,0 +1,202 @@
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.title {
+    color: var(--accent-primary);
+    margin: 0;
+}
+
+.newSongBtn {
+    background: var(--accent-secondary);
+    color: white;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.songForm {
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+
+.formGrid {
+    display: grid;
+    grid-template-columns: 3fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.label {
+    display: block;
+    margin-bottom: 0.5rem;
+}
+
+.formGroup {
+    margin-bottom: 1rem;
+}
+
+.textareaGroup {
+    margin-bottom: 1.5rem;
+}
+
+.submitBtn {
+    background: var(--accent-primary);
+    color: white;
+    width: 100%;
+    font-size: 1.1rem;
+}
+
+.ocrBtn {
+    padding: 0.3rem 0.6rem;
+    font-size: 0.8rem;
+    background: rgba(16, 185, 129, 0.2);
+    color: #10b981;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.searchBar {
+    padding: 0.5rem 1rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.searchInput {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    flex: 1;
+}
+
+.songsGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+}
+
+.songCard {
+    padding: 1.5rem;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.songCardSelected {
+    border: 2px solid var(--accent-primary) !important;
+}
+
+.cardActions {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    display: flex;
+    gap: 0.5rem;
+}
+
+.actionBtn {
+    padding: 0.4rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.editBtn {
+    background: rgba(139, 92, 246, 0.1);
+    color: var(--accent-primary);
+}
+
+.deleteBtn {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+}
+
+.songTitle {
+    margin: 0 0 0.25rem 0;
+    color: var(--accent-secondary);
+}
+
+.tagGroup {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.tag {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 0.2rem 0.6rem;
+    borderRadius: 20px;
+    font-size: 0.8rem;
+    border: 1px solid var(--glass-border);
+}
+
+.paginationContainer {
+    text-align: center;
+    margin-top: 2rem;
+}
+
+.loadMoreBtn {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-secondary);
+    border: 1px solid var(--glass-border);
+    padding: 0.75rem 2rem;
+}
+
+.emptySearch {
+    text-align: center;
+    margin-top: 2rem;
+    color: var(--text-secondary);
+}
+
+.detailCard {
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.detailHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.detailTitle {
+    font-size: 1.2rem;
+    margin: 0;
+}
+
+.detailContent {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+}
+
+.chordsContainer {
+    margin-top: 1rem;
+    border-top: 1px solid var(--glass-border);
+    padding-top: 1rem;
+}
+
+.chordsLabel {
+    font-size: 0.8rem;
+    color: var(--accent-secondary);
+    margin-bottom: 0.5rem;
+}
+
+.chordsPre {
+    font-family: monospace;
+    font-size: 0.85rem;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 0.75rem;
+    border-radius: 8px;
+    overflow-x: auto;
+    color: #10b981;
+}

@@ -4,6 +4,7 @@ import { uploadAttachment, deleteAttachment } from '../services/storageService';
 
 const AttachmentUploader = ({ bandId, entityType, entityId, onUploadComplete, currentAttachments = [] }) => {
     const fileInputRef = useRef(null);
+    const [error, setError] = useState(null);
     const [uploading, setUploading] = useState(false);
     const [progress, setProgress] = useState(0);
 
@@ -12,6 +13,7 @@ const AttachmentUploader = ({ bandId, entityType, entityId, onUploadComplete, cu
         if (!file) return;
 
         setUploading(true);
+        setError(null);
         setProgress(0);
 
         try {
@@ -24,8 +26,9 @@ const AttachmentUploader = ({ bandId, entityType, entityId, onUploadComplete, cu
             if (onUploadComplete) {
                 onUploadComplete([...currentAttachments, result]);
             }
-        } catch (error) {
-            alert(error.message);
+        } catch (err) {
+            console.error("Upload error:", err);
+            setError(err.message || "Error al subir el archivo.");
         } finally {
             setUploading(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
@@ -43,8 +46,8 @@ const AttachmentUploader = ({ bandId, entityType, entityId, onUploadComplete, cu
                 onUploadComplete(filtered);
             }
         } catch (err) {
-            console.error(err);
-            alert("Error al eliminar archivo.");
+            console.error("Remove error:", err);
+            setError("Error al eliminar el archivo.");
         }
     };
 
@@ -92,6 +95,12 @@ const AttachmentUploader = ({ bandId, entityType, entityId, onUploadComplete, cu
                 {uploading ? <Loader2 size={16} className="animate-spin" /> : <UploadCloud size={16} />}
                 {uploading ? `Subiendo ${Math.round(progress)}%...` : 'Adjuntar Archivo'}
             </button>
+
+            {error && (
+                <div style={{ marginTop: '0.5rem', color: '#ef4444', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                    ⚠️ {error}
+                </div>
+            )}
         </div>
     );
 };

@@ -47,13 +47,17 @@ service cloud.firestore {
       // Cualquier usuario autenticado puede crear una banda
       allow create: if isAuthenticated();
       
-      // Solo miembros pueden leer la banda
-      allow get: if isMember(bandId) || isAdmin(bandId);
+      // Permite GET si: eres miembro, eres SuperAdmin, o tienes una invitación pendiente por email.
+      allow get: if isAuthenticated() && (
+        isMember(bandId) || 
+        isSuperAdmin() || 
+        exists(/databases/$(database)/documents/bands/$(bandId)/invitations/$(request.auth.token.email.lower()))
+      );
       
-      // Permitir listado para búsqueda de mis propias bandas O por código de invitación O SuperAdmin
+      // LIST: Se permite listar si soy miembro, si soy SuperAdmin, o si estoy consultando con limit(1) (para el inviteCode)
       allow list: if isAuthenticated() && (
-        (request.query.limit <= 1 && 'inviteCode' in request.query.filters) ||
         (request.auth.uid in resource.data.members) ||
+        (request.query.limit <= 1) ||
         isSuperAdmin()
       );
 

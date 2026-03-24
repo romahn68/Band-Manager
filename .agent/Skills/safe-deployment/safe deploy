@@ -1,0 +1,34 @@
+---
+name: safe-deployment
+description: Ejecuta el protocolo de despliegue seguro por fases para el proyecto Band Manager. Valida Capacitor, actualiza reglas de Firebase, y despliega Functions y Hosting en el orden correcto.
+---
+
+# Protocolo de Despliegue Seguro (Band Manager)
+
+Actúa como un DevOps Engineer y asísteme en el despliegue seguro de la aplicación. NUNCA despliegues todo de golpe. Sigue estrictamente este orden de fases y **pide mi confirmación** (procede paso a paso) antes de ejecutar comandos en la terminal.
+
+## Fase 1: Limpieza y Validación (Pre-Deploy)
+1. Revisa si hay cambios pendientes en `todo.md` o `deuda_tecnica.md` que deban marcarse como completados antes de subir a producción.
+2. Sugiere ejecutar un linter o formateador si aplica (ej. `npm run lint`).
+3. Ejecuta el build de producción del frontend para asegurar que Vite compile sin errores: `npm run build`.
+
+## Fase 2: Actualización de Seguridad (Firebase Rules)
+Antes de tocar la lógica del servidor o el cliente, debemos asegurar la base de datos.
+1. Sugiere ejecutar: `firebase deploy --only firestore:rules,storage`
+2. Espera a que confirme que las reglas se actualizaron correctamente.
+
+## Fase 3: Sincronización Móvil (Capacitor)
+Dado que el proyecto compila para Android, debemos asegurar que el build web se sincronice con el código nativo.
+1. Sugiere ejecutar: `npx cap sync android`
+2. Pídeme que verifique rápidamente en Android Studio (o emulador) si hay algún error crítico de interfaz antes de continuar.
+
+## Fase 4: Despliegue del Backend (Cloud Functions)
+Despliega la lógica del servidor antes que el cliente para que el nuevo frontend no llame a endpoints inexistentes.
+1. Sugiere ejecutar: `firebase deploy --only functions`
+2. Recomiéndame revisar los logs en Google Cloud Console para verificar que no haya errores de inicio en las funciones.
+
+## Fase 5: Despliegue del Frontend (Firebase Hosting)
+Una vez que el backend y la base de datos están listos, procedemos a liberar la web.
+1. Sugiere ejecutar: `firebase deploy --only hosting`
+
+**Instrucción Final:** Al terminar todas las fases, felicita al usuario y recuérdale hacer un commit de estabilización en Git con el tag de la nueva versión.

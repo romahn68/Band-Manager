@@ -74,11 +74,15 @@ const Musicians = () => {
                 } else {
                     await updateMusician(activeBand.id, id, { role: value });
                 }
+            } else if (field === 'instrumento') {
+                // Fix: Instrument is stored as an object { nombre: 'Guitarra' } in DataModels
+                await updateMusician(activeBand.id, id, { instrument: { nombre: value } });
+                setMusicians(prev => prev.map(m => m.id === id ? { ...m, instrument: { nombre: value } } : m));
             } else {
                 await updateMusician(activeBand.id, id, { [field]: value });
+                setMusicians(prev => prev.map(m => m.id === id ? { ...m, [field]: value } : m));
             }
-            // Update local state for immediate feedback
-            setMusicians(prev => prev.map(m => m.id === id ? { ...m, [field]: value } : m));
+            // Update local state for immediate feedback inside the above blocks based on structure
         } catch (error) {
             console.error("Error updating field:", error);
             alert("Error al actualizar campo");

@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import ChordSheetJS from 'chordsheetjs';
-// Removed Instrument import due to Vite missing export compatibility
+import React, { useState, useMemo } from 'react';
+import { ChevronUp, ChevronDown, Type, Play, Square, Settings } from 'lucide-react';
 import styles from './ChordProViewer.module.css';
-import { motion, AnimatePresence } from 'framer-motion';
+import ChordSheetJS from 'chordsheetjs';
+import { AnimatePresence } from 'framer-motion';
 
 // Mocked basic dictionaries to avoid heavy payloads, but keeping structure for react-chords
 // For a production app, these dictionaries would be fetched from an API or comprehensive local JSON.
@@ -25,9 +25,10 @@ const guitarChords = {
     }
 };
 
-const ChordProViewer = ({ content }) => {
+const ChordProViewer = ({ content, parserType = 'chordpro', title = '' }) => {
     const [instrument, setInstrument] = useState(localStorage.getItem('preferredInstrument') || 'guitar');
     const [activeChord, setActiveChord] = useState(null);
+    const [transposeDelta, setTransposeDelta] = useState(0);
 
     const handleInstrumentChange = (e) => {
         const val = e.target.value;
@@ -35,15 +36,26 @@ const ChordProViewer = ({ content }) => {
         localStorage.setItem('preferredInstrument', val);
     };
 
-    if (!content) return null;
+    const song = useMemo(() => {
+        if (!content) return null;
+        try {
+            const parser = parserType === 'ultimate' 
+                ? new ChordSheetJS.UltimateGuitarParser() 
+                : new ChordSheetJS.ChordProParser();
+            
+            let parsedSong = parser.parse(content);
+            if (transposeDelta !== 0) {
+                parsedSong = parsedSong.transpose(transposeDelta);
+            }
+            return parsedSong;
+        } catch (e) {
+            console.error("ChordProViewer Parsing Error:", e);
+            return { error: e.message };
+        }
+    }, [content, parserType, transposeDelta]);
 
-    let song;
-    try {
-        const parser = new ChordSheetJS.ChordProParser();
-        song = parser.parse(content);
-    } catch (e) {
-        return <div className={styles.error}>Error parseando la canción: {e.message}</div>;
-    }
+    if (!content) return null;
+    if (song?.error) return <div className={styles.error}>Error parseando la canción: {song.error}</div>;
 
     const renderDiagram = (chordName) => {
         // Fallback custom text-based diagram instead of heavy SVG library
@@ -69,14 +81,23 @@ const ChordProViewer = ({ content }) => {
     return (
         <div className={`glass ${styles.viewerContainer}`}>
             <div className={styles.toolbar}>
-                <h3 className={styles.songTitle}>{song.title || 'Canción'}</h3>
-                <div className={styles.controls}>
-                    <label>Instrumento:</label>
-                    <select value={instrument} onChange={handleInstrumentChange} className={styles.instrumentSelect}>
-                        <option value="guitar">🎸 Guitarra</option>
-                        <option value="ukulele">🌴 Ukelele</option>
-                        <option value="piano">🎹 Piano</option>
-                    </select>
+                <h3 className={styles.songTitle}>{song.title || title || 'Canción'}</h3>
+                <div className={styles.controls} style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        <label>Tono:</label>
+                        <button className={styles.btnSmall} onClick={() => setTransposeDelta(t => t - 1)}>-1</button>
+                        <span style={{ minWidth: '20px', textAlign: 'center' }}>{transposeDelta > 0 ? `+${transposeDelta}` : transposeDelta}</span>
+                        <button className={styles.btnSmall} onClick={() => setTransposeDelta(t => t + 1)}>+1</button>
+                    </div>
+                
+                    <div>
+                        <label>Instrumento:</label>
+                        <select value={instrument} onChange={handleInstrumentChange} className={styles.instrumentSelect}>
+                            <option value="guitar">🎸 Guitarra</option>
+                            <option value="ukulele">🌴 Ukelele</option>
+                            <option value="piano">🎹 Piano</option>
+                        </select>
+                    </div>
                 </div>
             </div>
 
@@ -88,9 +109,9 @@ const ChordProViewer = ({ content }) => {
 
                     return (
                         <div key={`line-${lineIdx}`} className={styles.line}>
-                            {line.items && line.items.map((item, itemIdx) => {
-                                if (!item) return null;
-                                if (item.constructor.name === 'ChordLyricPair') {
+                            {line.items.map((item, itemIdx) => {
+                                // Checking for properties is more robust than constructor.name for production builds
+                                if (item.chords !== undefined || item.lyrics !== undefined) {
                                     return (
                                         <div key={`pair-${lineIdx}-${itemIdx}`} className={styles.chordLyricPair}>
                                             {item.chords && (
@@ -122,8 +143,8 @@ const ChordProViewer = ({ content }) => {
                                     );
                                 }
                                 
-                                if (item.constructor.name === 'Tag') {
-                                    if (item.name === 'title' || item.name === 'subtitle') return null; // Already show title
+                                if (item.name && item.value) {
+                                    if (item.name === 'title' || item.name === 'subtitle') return null;
                                     return (
                                         <div key={`tag-${lineIdx}-${itemIdx}`} className={styles.tag}>
                                             <span className={styles.tagName}>{item.name}:</span> {item.value}

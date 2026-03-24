@@ -13,3 +13,12 @@
 1. **Ejecución de Migración**: Utilizar `scripts/migrateIds.js` para limpiar datos históricos una vez se tenga el `serviceAccountKey.json`.
 2. **Mejoras de UX**: Implementar "Skeleton Loaders" en las listas paginadas para una sensación aún más fluida.
 3. **Internacionalización**: Preparar el sistema para multi-idioma si Alan lo requiere en el futuro.
+
+## Nueva Canciones UX/UI (Refactor)
+- [ ] **@arquitecto.md**: Definir la estructura de datos que se guardará (texto crudo + metadata) y la configuración de `chordsheetjs` (UltimateGuitarParser, etc).
+- [ ] **@backend.md**: Preparar compatibilidad en `firestoreService.js`. Si se elimina el form de "ChordPro", asegurar que los campos pasados (acordes vs chordProContent) no rompan.
+- [ ] **@frontend.md**: 
+    - Crear el nuevo Input (textarea simple) para pegar letra con acordes arriba.
+    - Opcional: Auto-Scroll y Transposición flotantes en el Visor.
+    - Mejorar el Dark Mode del Visor (Acordes legibles).
+- [ ] **@guardian.md**: Validar que el textarea no permita inyección de código y probar que la transposición no lance errores con acordes raros o vacíos.

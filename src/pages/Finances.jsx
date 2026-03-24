@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../hooks/useApp';
-import { getFinancesPaginated, addFinance, deleteFinance } from '../services/firestoreService';
+import { getFinancesPaginated, addFinance, deleteFinance, updateFinance, getFinanceTotals } from '../services/firestoreService';
 import { Plus, Trash2, ArrowUpCircle, ArrowDownCircle, Search, Camera, Loader2 } from 'lucide-react';
 import { scanText } from '../services/ocrService';
 import { Capacitor } from '@capacitor/core';
@@ -16,6 +16,18 @@ const Finances = () => {
     const [filter, setFilter] = useState('all'); // all, ingreso, egreso
     const [lastVisible, setLastVisible] = useState(null);
     const [hasMore, setHasMore] = useState(false);
+    const [updatingId, setUpdatingId] = useState(null);
+    const [globalTotals, setGlobalTotals] = useState({ income: 0, expense: 0, balance: 0 });
+
+    const loadTotals = React.useCallback(async () => {
+        if (!activeBand) return;
+        try {
+            const totals = await getFinanceTotals(activeBand.id);
+            setGlobalTotals(totals);
+        } catch (e) {
+            console.error(e);
+        }
+    }, [activeBand]);
 
     const [formData, setFormData] = useState({
         concepto: '',
@@ -34,12 +46,13 @@ const Finances = () => {
             setTransactions(data);
             setLastVisible(lastDoc);
             setHasMore(data.length === 50);
+            await loadTotals();
         } catch (error) {
             console.error("Error loading finances:", error);
         } finally {
             setLoading(false);
         }
-    }, [activeBand]);
+    }, [activeBand, loadTotals]);
 
     const loadMore = async () => {
         if (!activeBand || loading || !hasMore) return;
@@ -103,20 +116,14 @@ const Finances = () => {
         if (window.confirm('¿Eliminar esta transacción?')) {
             try {
                 await deleteFinance(activeBand.id, id);
-                loadInitial();
+                await loadTotals();
+                // Instead of full reload, just remove from list to save reads
+                setTransactions(prev => prev.filter(t => t.id !== id));
             } catch (error) {
                 console.error("Error deleting finance:", error);
             }
         }
     };
-
-    const totals = transactions.reduce((acc, curr) => {
-        if (curr.tipo === 'ingreso') acc.income += curr.monto;
-        else acc.expense += curr.monto;
-        return acc;
-    }, { income: 0, expense: 0 });
-
-    const balance = totals.income - totals.expense;
 
     const filteredTransactions = transactions.filter(t => {
         const matchesSearch = t.concepto.toLowerCase().includes(search.toLowerCase()) ||
@@ -131,6 +138,9 @@ const Finances = () => {
             const parsedValue = field === 'monto' ? parseFloat(value) : value;
             await updateFinance(activeBand.id, id, { [field]: parsedValue });
             setTransactions(prev => prev.map(t => t.id === id ? { ...t, [field]: parsedValue } : t));
+            if (field === 'monto' || field === 'tipo') {
+                await loadTotals();
+            }
         } catch (error) {
             console.error("Error updating finance:", error);
             alert("Error al actualizar");
@@ -162,8 +172,8 @@ const Finances = () => {
             <div className={styles.statsGrid}>
                 <div className={`${styles.statCard} glass`} style={{ borderLeft: '4px solid var(--accent-primary)' }}>
                     <div className={styles.statLabel}>Balance General</div>
-                    <div className={styles.statValue} style={{ color: balance >= 0 ? 'var(--accent-secondary)' : '#ef4444' }}>
-                        ${balance.toLocaleString()}
+                    <div className={styles.statValue} style={{ color: globalTotals.balance >= 0 ? 'var(--accent-secondary)' : '#ef4444' }}>
+                        ${globalTotals.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </div>
                 </div>
                 <div className={`${styles.statCard} glass`} style={{ borderLeft: '4px solid var(--accent-secondary)' }}>
@@ -171,7 +181,7 @@ const Finances = () => {
                         <ArrowUpCircle size={16} /> Total Ingresos
                     </div>
                     <div className={styles.statValueLarge} style={{ color: 'var(--accent-secondary)' }}>
-                        +${totals.income.toLocaleString()}
+                        +${globalTotals.income.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </div>
                 </div>
                 <div className={`${styles.statCard} glass`} style={{ borderLeft: '4px solid #ef4444' }}>
@@ -179,7 +189,7 @@ const Finances = () => {
                         <ArrowDownCircle size={16} /> Total Egresos
                     </div>
                     <div className={styles.statValueLarge} style={{ color: '#ef4444' }}>
-                        -${totals.expense.toLocaleString()}
+                        -${globalTotals.expense.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </div>
                 </div>
             </div>

@@ -1,5 +1,5 @@
 import { db } from '../firebase';
-import { collection, query, where, getDocs, addDoc, doc, updateDoc, deleteDoc, getDoc, orderBy, onSnapshot, serverTimestamp, writeBatch, limit, limitToLast, startAfter, setDoc, getCountFromServer, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, doc, updateDoc, deleteDoc, getDoc, orderBy, onSnapshot, serverTimestamp, writeBatch, limit, limitToLast, startAfter, setDoc, getCountFromServer, getAggregateFromServer, sum, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { generateIdCode } from '../utils/codeGenerator';
 import { ENTITY_TYPES, ROLES } from '../utils/constants';
 import { 
@@ -198,31 +198,41 @@ const getCollectionCount = async (coll, bandId) => {
 
 const getCollection = async (coll, bandId, limitCount = 100) => {
     if (!bandId) return [];
-    // Added safety limit to prevent massive unpaginated reads
-    const q = query(collection(db, "bands", bandId, coll), limit(limitCount));
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    try {
+        // Added safety limit to prevent massive unpaginated reads
+        const q = query(collection(db, "bands", bandId, coll), limit(limitCount));
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+        console.error(`Error fetching collection ${coll}:`, error);
+        return [];
+    }
 };
 
 // --- PAGINATION HELPER ---
 export const getPaginatedCollection = async (coll, bandId, pageSize = 20, lastDoc = null) => {
     if (!bandId) return { data: [], lastDoc: null };
     
-    let q = query(
-        collection(db, "bands", bandId, coll),
-        orderBy("createdAt", "desc"),
-        limit(pageSize)
-    );
+    try {
+        let q = query(
+            collection(db, "bands", bandId, coll),
+            orderBy("createdAt", "desc"),
+            limit(pageSize)
+        );
 
-    if (lastDoc) {
-        q = query(q, startAfter(lastDoc));
+        if (lastDoc) {
+            q = query(q, startAfter(lastDoc));
+        }
+
+        const querySnapshot = await getDocs(q);
+        const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const lastVisible = querySnapshot.docs[querySnapshot.docs.length - 1] || null;
+
+        return { data, lastDoc: lastVisible };
+    } catch (error) {
+        console.error(`Error in getPaginatedCollection for ${coll}:`, error);
+        return { data: [], lastDoc: null };
     }
-
-    const querySnapshot = await getDocs(q);
-    const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    const lastVisible = querySnapshot.docs[querySnapshot.docs.length - 1] || null;
-
-    return { data, lastDoc: lastVisible };
 };
 
 const addItem = async (coll, bandId, item) => {
@@ -461,6 +471,29 @@ export const bulkAddGear = (bandId, gear) => bulkAddItems('gear', bandId, gear);
 export const getFinances = (bandId, pageSize = 50) => getCollection('finances', bandId, pageSize);
 export const getFinancesPaginated = (bandId, pageSize = 15, lastVisible = null) =>
     getPaginatedCollection('finances', bandId, pageSize, lastVisible);
+
+export const getFinanceTotals = async (bandId) => {
+    if (!bandId) return { income: 0, expense: 0, balance: 0 };
+    try {
+        const collRef = collection(db, "bands", bandId, "finances");
+        
+        const qIncome = query(collRef, where("tipo", "==", "ingreso"));
+        const qExpense = query(collRef, where("tipo", "==", "egreso"));
+        
+        const [incSnap, expSnap] = await Promise.all([
+            getAggregateFromServer(qIncome, { total: sum('monto') }),
+            getAggregateFromServer(qExpense, { total: sum('monto') })
+        ]);
+
+        const income = incSnap.data().total || 0;
+        const expense = expSnap.data().total || 0;
+        
+        return { income, expense, balance: income - expense };
+    } catch (error) {
+        console.error("Error getting finance totals:", error);
+        return { income: 0, expense: 0, balance: 0 };
+    }
+};
 
 export const addFinance = (bandId, record) => addItem('finances', bandId, record);
 export const updateFinance = (bandId, id, data) => updateItem('finances', bandId, id, data);
