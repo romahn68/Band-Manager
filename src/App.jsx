@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, Outlet, useOutlet } from 'react-router-dom';
 import { AppProvider } from './AppContext';
 import { AuthProvider } from './AuthContext';
 import { useAuth } from './hooks/useAuth';
@@ -128,6 +128,7 @@ const MainLayout = ({ children }) => {
   const { error, ghostMode, exitGhostMode, activeBand } = useApp();
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
   const [isMobile, setIsMobile] = React.useState(window.innerWidth <= 768);
+  const location = useLocation();
 
   React.useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768);
@@ -183,44 +184,73 @@ const MainLayout = ({ children }) => {
           </div>
         )}
 
-        {error && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="glass"
-            style={{
-              padding: '1rem',
-              margin: '1rem 2rem',
-              background: 'rgba(239, 68, 68, 0.1)',
-              borderLeft: '4px solid #ef4444',
-              color: '#fca5a5'
-            }}
-          >
-            <strong>⚠️ Error de Conexión:</strong> {error}
-          </motion.div>
-        )}
-
-        <AnimatePresence mode="wait">
-          <motion.main
-            key={window.location.pathname}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ duration: 0.3 }}
-            style={{ width: '100%' }}
-          >
-            {children}
-          </motion.main>
-        </AnimatePresence>
+        <div style={{ width: '100%' }}>
+            <AnimatedOutlet />
+        </div>
       </div>
     </div>
   );
 };
 
+// --- Settings Route with Permission Check ---
 const SettingsRoute = () => {
-  const permissions = usePermissions();
-  if (!permissions.canAccessSettings) return <Navigate to="/dashboard" replace />;
-  return <Settings />;
+    const permissions = usePermissions();
+    if (!permissions.canAccessSettings) return <Navigate to="/dashboard" replace />;
+    return <Settings />;
+};
+
+// --- Animated Outlet Hook to Freeze Context ---
+
+const AnimatedOutlet = () => {
+    const location = useLocation();
+    const element = useOutlet();
+    
+    // The key on motion.main ensures AnimatePresence captures the exiting element
+    return (
+        <AnimatePresence mode="wait">
+            {element && (
+                <motion.main
+                    key={location.pathname}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.3 }}
+                    style={{ width: '100%' }}
+                >
+                    {element}
+                </motion.main>
+            )}
+        </AnimatePresence>
+    );
+};
+
+
+// --- Standard Routes Container ---
+const AppRoutes = () => {
+  return (
+    <Routes>
+      {/* Public Routes */}
+      <Route path="/" element={<Home />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
+      <Route path="/unirse/:code" element={<JoinBand />} />
+
+      {/* Protected Routes inside MainLayout */}
+      <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/musicos" element={<Musicians />} />
+        <Route path="/biblioteca" element={<Songs />} />
+        <Route path="/ensayos" element={<Rehearsals />} />
+        <Route path="/conciertos" element={<Gigs />} />
+        <Route path="/inventario" element={<Inventory />} />
+        <Route path="/finanzas" element={<Finances />} />
+        <Route path="/configuracion" element={<SettingsRoute />} />
+        <Route path="/dev" element={<ProtectedDevRoute><AdminDashboard /></ProtectedDevRoute>} />
+      </Route>
+
+      <Route path="*" element={<Navigate to="/" />} />
+    </Routes>
+  );
 };
 
 function App() {
@@ -228,27 +258,15 @@ function App() {
   const [checkingMaintenance, setCheckingMaintenance] = React.useState(true);
 
   useEffect(() => {
-    // Basic timeout as a safety measure for initialization
-    const safetyTimer = setTimeout(() => {
-      if (checkingMaintenance) {
-        setCheckingMaintenance(false);
-      }
-    }, 4000); // 4s fallback
-
+    const safetyTimer = setTimeout(() => setCheckingMaintenance(false), 4000);
     const unsubscribe = subscribeToSettings((settings) => {
       setMaintenanceMode(settings?.maintenanceMode || false);
       setCheckingMaintenance(false);
     });
-
-    return () => {
-      clearTimeout(safetyTimer);
-      if (unsubscribe) unsubscribe();
-    };
+    return () => { clearTimeout(safetyTimer); if (unsubscribe) unsubscribe(); };
   }, []);
 
-  if (checkingMaintenance) {
-    return <LoadingScreen message="Iniciando sistema..." />;
-  }
+  if (checkingMaintenance) return <LoadingScreen message="Iniciando sistema..." />;
 
   return (
     <ErrorBoundary>
@@ -256,31 +274,7 @@ function App() {
         <MaintenanceGuard isMaintenance={maintenanceMode}>
           <AppProvider>
             <Router>
-              <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
-
-                {/* Main App Routes with Sidebar */}
-                <Route path="/dashboard" element={<ProtectedRoute><MainLayout><Dashboard /></MainLayout></ProtectedRoute>} />
-                <Route path="/musicos" element={<ProtectedRoute><MainLayout><Musicians /></MainLayout></ProtectedRoute>} />
-                <Route path="/biblioteca" element={<ProtectedRoute><MainLayout><Songs /></MainLayout></ProtectedRoute>} />
-                <Route path="/ensayos" element={<ProtectedRoute><MainLayout><Rehearsals /></MainLayout></ProtectedRoute>} />
-                <Route path="/conciertos" element={<ProtectedRoute><MainLayout><Gigs /></MainLayout></ProtectedRoute>} />
-                <Route path="/inventario" element={<ProtectedRoute><MainLayout><Inventory /></MainLayout></ProtectedRoute>} />
-                <Route path="/finanzas" element={<ProtectedRoute><MainLayout><Finances /></MainLayout></ProtectedRoute>} />
-                <Route path="/unirse/:code" element={<JoinBand />} />
-                <Route path="/configuracion" element={
-                  <ProtectedRoute>
-                    <MainLayout>
-                      <SettingsRoute />
-                    </MainLayout>
-                  </ProtectedRoute>
-                } />
-                <Route path="/dev" element={<ProtectedDevRoute><MainLayout><AdminDashboard /></MainLayout></ProtectedDevRoute>} />
-
-                <Route path="*" element={<Navigate to="/" />} />
-              </Routes>
+              <AppRoutes />
             </Router>
           </AppProvider>
         </MaintenanceGuard>

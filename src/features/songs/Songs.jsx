@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../hooks/useApp';
 import { getSongsPaginated, addSong, updateSong, deleteSong } from '../../services/firestoreService';
+import { usePermissions } from '../../hooks/usePermissions';
 import { Plus, Trash2, Edit2, Check, X, Search, FileText, MessageSquare, Camera } from 'lucide-react';
 import CommentsSection from '../../components/CommentsSection';
 import AttachmentUploader from '../../components/AttachmentUploader';
@@ -25,6 +26,7 @@ const itemVariants = {
 
 const Songs = () => {
     const { activeBand } = useApp();
+    const { canEditRepertoire, isVisor } = usePermissions();
     const [songs, setSongs] = useState([]);
     const [showForm, setShowForm] = useState(false);
     const [formData, setFormData] = useState({ titulo: '', tonalidad: '', letraCruda: '', acordesExtra: '' });
@@ -36,20 +38,12 @@ const Songs = () => {
     const [hasMore, setHasMore] = useState(true);
     const [loading, setLoading] = useState(false);
 
-    const loadSongs = React.useCallback(async (isInitial = true) => {
+    const loadInitial = React.useCallback(async () => {
         if (!activeBand) return;
         setLoading(true);
-
         try {
-            const cursor = isInitial ? null : lastVisible;
-            const { data, lastVisible: newLastVisible } = await getSongsPaginated(activeBand.id, 15, cursor);
-
-            if (isInitial) {
-                setSongs(data);
-            } else {
-                setSongs(prev => [...prev, ...data]);
-            }
-
+            const { data, lastVisible: newLastVisible } = await getSongsPaginated(activeBand.id, 15, null);
+            setSongs(data);
             setLastVisible(newLastVisible);
             setHasMore(data.length === 15);
         } catch (e) {
@@ -57,11 +51,26 @@ const Songs = () => {
         } finally {
             setLoading(false);
         }
-    }, [activeBand, lastVisible]);
+    }, [activeBand]);
+
+    const loadMore = async () => {
+        if (!activeBand || !lastVisible) return;
+        setLoading(true);
+        try {
+            const { data, lastVisible: newLastVisible } = await getSongsPaginated(activeBand.id, 15, lastVisible);
+            setSongs(prev => [...prev, ...data]);
+            setLastVisible(newLastVisible);
+            setHasMore(data.length === 15);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        if (activeBand) loadSongs(true);
-    }, [activeBand, loadSongs]);
+        loadInitial();
+    }, [activeBand, loadInitial]);
 
     // Warn before leaving if form has unsaved changes
     useEffect(() => {
@@ -91,7 +100,7 @@ const Songs = () => {
                 }
             } else {
                 await addSong(activeBand.id, formData);
-                loadSongs(true); // Recargar desde inicio para el componente
+                loadInitial(); // Recargar desde inicio para el componente
             }
             setFormData({ titulo: '', tonalidad: '', letraCruda: '', acordesExtra: '' });
             setShowForm(false);
@@ -103,6 +112,7 @@ const Songs = () => {
     };
 
     const handleDelete = async (id) => {
+        if (isVisor) return;
         if (window.confirm('¿Estás seguro de que deseas eliminar esta canción?')) {
             await deleteSong(activeBand.id, id);
             setSongs(songs.filter(s => s.id !== id));
@@ -110,6 +120,7 @@ const Songs = () => {
     };
 
     const startEdit = (song) => {
+        if (isVisor) return;
         setEditingId(song.id);
         setFormData({ 
             titulo: song.titulo, 
@@ -136,16 +147,18 @@ const Songs = () => {
         >
             <div className={styles.header}>
                 <h1 className={styles.title}>Biblioteca de Canciones</h1>
-                <button
-                    onClick={() => {
-                        setShowForm(!showForm);
-                        setEditingId(null);
-                        setFormData({ titulo: '', tonalidad: '', letraCruda: '', acordesExtra: '' });
-                    }}
-                    className={styles.newSongBtn}
-                >
-                    {showForm ? <X size={20} /> : <Plus size={20} />} {showForm ? 'Cancelar' : 'Nueva Canción'}
-                </button>
+                {canEditRepertoire && (
+                    <button
+                        onClick={() => {
+                            setShowForm(!showForm);
+                            setEditingId(null);
+                            setFormData({ titulo: '', tonalidad: '', letraCruda: '', acordesExtra: '' });
+                        }}
+                        className={styles.newSongBtn}
+                    >
+                        {showForm ? <X size={20} /> : <Plus size={20} />} {showForm ? 'Cancelar' : 'Nueva Canción'}
+                    </button>
+                )}
             </div>
 
             <AnimatePresence>
@@ -258,20 +271,22 @@ const Songs = () => {
                                     className={`glass ${styles.songCard} ${selectedSong?.id === song.id ? styles.songCardSelected : ''}`}
                                     onClick={() => setSelectedSong(selectedSong?.id === song.id ? null : song)}
                                 >
-                                    <div className={styles.cardActions}>
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); startEdit(song); }}
-                                            className={`${styles.actionBtn} ${styles.editBtn}`}
-                                        >
-                                            <Edit2 size={16} />
-                                        </button>
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); handleDelete(song.id); }}
-                                            className={`${styles.actionBtn} ${styles.deleteBtn}`}
-                                        >
-                                            <Trash2 size={16} />
-                                        </button>
-                                    </div>
+                                    {canEditRepertoire && (
+                                        <div className={styles.cardActions}>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); startEdit(song); }}
+                                                className={`${styles.actionBtn} ${styles.editBtn}`}
+                                            >
+                                                <Edit2 size={16} />
+                                            </button>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleDelete(song.id); }}
+                                                className={`${styles.actionBtn} ${styles.deleteBtn}`}
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    )}
                                     <h3 className={styles.songTitle}>{song.titulo}</h3>
                                     <div className={styles.tagGroup}>
                                         <span className={styles.tag}>
@@ -288,7 +303,7 @@ const Songs = () => {
                     {hasMore && !search && (
                         <div className={styles.paginationContainer}>
                             <button
-                                onClick={() => loadSongs(false)}
+                                onClick={loadMore}
                                 disabled={loading}
                                 className={styles.loadMoreBtn}
                             >

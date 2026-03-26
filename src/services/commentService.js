@@ -24,7 +24,7 @@ export const commentService = {
         if (!text.trim()) throw new Error("El comentario no puede estar vacío");
 
         try {
-            const commentsRef = collection(db, "bands", bandId, "comments");
+            const commentsRef = collection(db, "bands", bandId, "messages");
             return await addDoc(commentsRef, {
                 parentId,
                 parentType,
@@ -44,7 +44,7 @@ export const commentService = {
      */
     async deleteComment(bandId, commentId) {
         try {
-            const commentRef = doc(db, "bands", bandId, "comments", commentId);
+            const commentRef = doc(db, "bands", bandId, "messages", commentId);
             return await deleteDoc(commentRef);
         } catch (error) {
             console.error("Error deleting comment:", error);
@@ -56,7 +56,7 @@ export const commentService = {
      * Suscripción en tiempo real a comentarios de un elemento específico
      */
     subscribeToComments(bandId, parentId, callback) {
-        const commentsRef = collection(db, "bands", bandId, "comments");
+        const commentsRef = collection(db, "bands", bandId, "messages");
         const q = query(
             commentsRef,
             where("parentId", "==", parentId),

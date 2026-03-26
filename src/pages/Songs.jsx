@@ -36,20 +36,12 @@ const Songs = () => {
     const [hasMore, setHasMore] = useState(true);
     const [loading, setLoading] = useState(false);
 
-    const loadSongs = React.useCallback(async (isInitial = true) => {
+    const loadInitial = React.useCallback(async () => {
         if (!activeBand) return;
         setLoading(true);
-
         try {
-            const cursor = isInitial ? null : lastVisible;
-            const { data, lastVisible: newLastVisible } = await getSongsPaginated(activeBand.id, 15, cursor);
-
-            if (isInitial) {
-                setSongs(data);
-            } else {
-                setSongs(prev => [...prev, ...data]);
-            }
-
+            const { data, lastVisible: newLastVisible } = await getSongsPaginated(activeBand.id, 15, null);
+            setSongs(data);
             setLastVisible(newLastVisible);
             setHasMore(data.length === 15);
         } catch (e) {
@@ -57,11 +49,26 @@ const Songs = () => {
         } finally {
             setLoading(false);
         }
-    }, [activeBand, lastVisible]);
+    }, [activeBand]);
+
+    const loadMore = async () => {
+        if (!activeBand || !lastVisible) return;
+        setLoading(true);
+        try {
+            const { data, lastVisible: newLastVisible } = await getSongsPaginated(activeBand.id, 15, lastVisible);
+            setSongs(prev => [...prev, ...data]);
+            setLastVisible(newLastVisible);
+            setHasMore(data.length === 15);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        if (activeBand) loadSongs(true);
-    }, [activeBand, loadSongs]);
+        loadInitial();
+    }, [activeBand, loadInitial]);
 
     // Warn before leaving if form has unsaved changes
     useEffect(() => {
@@ -89,7 +96,7 @@ const Songs = () => {
             setFormData({ titulo: '', tonalidad: '', letra: '', acordes: '', chordProContent: '' });
             setShowForm(false);
             setEditingId(null);
-            loadSongs();
+            loadInitial();
         } catch (error) {
             console.error("Error saving song:", error);
             alert("Error al guardar la canción.");
@@ -109,10 +116,11 @@ const Songs = () => {
         setShowForm(true);
     };
 
-    const filteredSongs = songs.filter(s =>
-        s.titulo.toLowerCase().includes(search.toLowerCase()) ||
-        s.tonalidad.toLowerCase().includes(search.toLowerCase())
-    );
+    const filteredSongs = songs.filter(s => {
+        const titleMatch = s.titulo ? s.titulo.toLowerCase().includes(search.toLowerCase()) : false;
+        const toneMatch = s.tonalidad ? s.tonalidad.toLowerCase().includes(search.toLowerCase()) : false;
+        return titleMatch || toneMatch;
+    });
 
     return (
         <motion.div 
@@ -283,7 +291,7 @@ const Songs = () => {
                     {hasMore && !search && (
                         <div className={styles.paginationContainer}>
                             <button
-                                onClick={() => loadSongs(false)}
+                                onClick={loadMore}
                                 disabled={loading}
                                 className={styles.loadMoreBtn}
                             >
@@ -338,7 +346,9 @@ const Songs = () => {
                                     onUploadComplete={async (newAttachments) => {
                                         await updateSong(activeBand.id, selectedSong.id, { attachments: newAttachments });
                                         setSelectedSong(prev => ({ ...prev, attachments: newAttachments }));
-                                        loadSongs(false); // Recarga silenciosa
+                                        setSongs(prevSongs => prevSongs.map(s => 
+                                            s.id === selectedSong.id ? { ...s, attachments: newAttachments } : s
+                                        ));
                                     }}
                                 />
 

@@ -74,6 +74,7 @@ const Musicians = () => {
                 } else {
                     await updateMusician(activeBand.id, id, { role: value });
                 }
+                setMusicians(prev => prev.map(m => m.id === id ? { ...m, role: value } : m));
             } else if (field === 'instrumento') {
                 // Fix: Instrument is stored as an object { nombre: 'Guitarra' } in DataModels
                 await updateMusician(activeBand.id, id, { instrument: { nombre: value } });

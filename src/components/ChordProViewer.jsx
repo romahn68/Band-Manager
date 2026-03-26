@@ -49,9 +49,9 @@ const ChordProViewer = ({ content }) => {
         // Fallback custom text-based diagram instead of heavy SVG library
         if (instrument === 'guitar' && guitarChords.chords[chordName]) {
             return (
-                <div className={styles.diagramTooltip} style={{ fontSize: '0.9rem', textAlign: 'center', display: 'flex', flexDirection: 'column' }}>
-                    <strong style={{ color: 'var(--accent-primary)' }}>{chordName}</strong>
-                    <div style={{ marginTop: '0.5rem', fontFamily: 'monospace', letterSpacing: '2px' }}>
+                <div className={`${styles.diagramTooltip} ${styles.diagramCustomText}`}>
+                    <span className={styles.diagramChordName}>{chordName}</span>
+                    <div className={styles.diagramFrets}>
                         {guitarChords.chords[chordName][0].frets.map(f => f === -1 ? 'X' : f).join('-')}
                     </div>
                 </div>
@@ -59,7 +59,7 @@ const ChordProViewer = ({ content }) => {
         }
         return (
             <div className={styles.diagramTooltip}>
-                <div style={{ padding: '0.5rem', fontSize: '0.8rem', color: '#666' }}>
+                <div className={styles.diagramFallback}>
                     Diagrama no disponible para '{chordName}' ({instrument})
                 </div>
             </div>

@@ -402,9 +402,14 @@ export const deleteMusician = (bandId, id) => deleteItem('musicians', bandId, id
 
 export const updateMemberRole = async (bandId, memberUid, newRole) => {
     try {
+        const memberRef = doc(db, "bands", bandId, "musicians", memberUid);
+        const memberSnap = await getDoc(memberRef);
+        if (!memberSnap.exists()) {
+            throw new Error("El miembro no existe en la banda.");
+        }
+
         const batch = writeBatch(db);
         const bandRef = doc(db, "bands", bandId);
-        const memberRef = doc(db, "bands", bandId, "musicians", memberUid);
 
         batch.update(memberRef, { role: newRole });
 

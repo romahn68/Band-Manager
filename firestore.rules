@@ -86,8 +86,8 @@ service cloud.firestore {
       match /rehearsals/{documentId} { allow read: if isVisor(bandId); allow write: if isEditor(bandId) || isSuperAdmin(); }
       match /instruments/{documentId} { allow read: if isVisor(bandId); allow write: if isEditor(bandId) || isSuperAdmin(); }
 
-      // Sistema de Comentarios (Refactorizado a authorUid)
-      match /comments/{commentId} {
+      // Sistema de Mensajería (Chat interno de la banda)
+      match /messages/{messageId} {
         allow read: if isMember(bandId) || isSuperAdmin();
         allow create: if isMember(bandId) && request.resource.data.authorUid == request.auth.uid;
         allow update, delete: if (isMember(bandId) && (resource.data.authorUid == request.auth.uid || isAdmin(bandId))) || isSuperAdmin();
